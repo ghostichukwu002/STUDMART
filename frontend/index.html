@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="STUDMART — the school marketplace to buy, sell, share and swap with students on campus." />
+  <title>STUDMART — School Marketplace</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="STUDMART home">
+        
+        <span class="brand-word">STUD<span>MART</span></span>
+      </a>
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input id="searchInput" type="search" placeholder="Search textbooks, gadgets, fashion, services..." />
+        <kbd>/</kbd>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="notifyBtn" aria-label="Notifications">♧<span class="dot"></span></button>
+        <button class="sell-btn" data-view="sell">+ Sell an item</button>
+        <button class="avatar-btn" id="profileBtn">AO</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <nav>
+          <a class="nav-item active" href="#home" data-view="home" aria-label="Home"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><span class="nav-label">Home</span></a>
+          <a class="nav-item" href="#marketplace" data-view="marketplace" aria-label="Marketplace"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10h16v10H4zM3 10l2-6h14l2 6M8 14h3v6H8zM16 14h3v6h-3z"/></svg></span><span class="nav-label">Marketplace</span></a>
+          <a class="nav-item" href="#categories" data-view="categories" aria-label="Categories"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></span><span class="nav-label">Categories</span></a>
+          <a class="nav-item" href="#messages" data-view="messages" aria-label="Messages"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.5 8.5 0 0 1-3.5-.75L4 20l1.6-3.65A7.3 7.3 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></svg></span><span class="nav-label">Messages</span><b>3</b></a>
+          <a class="nav-item" href="#saved" data-view="saved" aria-label="Saved"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4.5A2.5 2.5 0 0 1 8.5 2h7A2.5 2.5 0 0 1 18 4.5V21l-6-3.5L6 21z"/></svg></span><span class="nav-label">Saved</span></a>
+          <a class="nav-item" href="#profile" data-view="profile" aria-label="My profile"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span><span class="nav-label">My profile</span></a>
+        </nav>
+        <div class="sidebar-card">
+          <div class="mini-icon">S</div>
+          <strong>Made for school life.</strong>
+          <p>Find what you need from people you already share campus with.</p>
+          <button data-view="sell">Start selling →</button>
+        </div>
+        <div class="sidebar-bottom">
+          <span>STUDMART</span>
+          <small>Find it. Share it.</small>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="view active" id="home">
+          <div class="hero">
+            <div>
+              <span class="eyebrow">CAMPUS MARKETPLACE</span>
+              <h1>Buy smarter.<br><em>Sell easier.</em></h1>
+              <p>One trusted place for students to buy, sell, swap and discover useful things around campus.</p>
+              <div class="hero-actions">
+                <button class="primary" data-view="marketplace">Explore marketplace →</button>
+                <button class="secondary" data-view="sell">List an item</button>
+              </div>
+              <div class="hero-trust">
+                <div class="avatars"><i>AM</i><i>CK</i><i>TO</i><i>+2k</i></div>
+                <span><strong>2,000+</strong> students already on campus</span>
+              </div>
+            </div>
+            <div class="hero-art">
+              <div class="art-card big">
+                <span class="tag">FEATURED</span>
+                <div class="product-emoji">🎧</div>
+                <strong>Noise-Cancelling<br/>Headphones</strong>
+                <small>Excellent condition · Campus pickup</small>
+                <div class="art-price">₦45,000</div>
+              </div>
+              <div class="float-card">♡ <strong>128</strong> saves</div>
+              <div class="float-card verified">✓ School verified</div>
+            </div>
+          </div>
+
+          <section class="school-section" aria-labelledby="schoolHeading">
+            <div class="school-copy">
+              <span class="eyebrow">YOUR CAMPUS, YOUR MARKET</span>
+              <h2 id="schoolHeading">Find your school in Nigeria.</h2>
+              <p>Choose your state and school to see student listings closest to your campus.</p>
+              <div class="school-selects">
+                <label>State<select id="schoolState" aria-label="Select a Nigerian state"></select></label>
+                <label>School<select id="schoolName" aria-label="Select your school"></select></label>
+                <button class="primary" id="saveSchool" type="button">Use this school →</button>
+              </div>
+              <small class="school-note" id="schoolNote">Your choice personalises your campus marketplace.</small>
+            </div>
+            <div class="school-map" aria-hidden="true"><span>🇳🇬</span><strong>36 states</strong><small>One student marketplace</small></div></section>
+
+          <div class="smart-cta"><div><span class="eyebrow">STUDENT SELLERS</span><h2>Have something useful? Put it in front of your campus.</h2><p>Create your profile, add your item and start conversations with interested students.</p></div><button class="primary" data-view="sell">Start selling →</button></div>
+
+          <div class="section-head">
+            <div><span class="eyebrow">DISCOVER</span><h2>Shop by category</h2></div>
+            <button class="text-btn" data-view="categories">View all →</button>
+          </div>
+          <div class="category-grid">
+            <button class="category-card orange" data-category="Books"><span>📚</span><strong>Books</strong><small>324 listings</small></button>
+            <button class="category-card" data-category="Electronics"><span>💻</span><strong>Electronics</strong><small>186 listings</small></button>
+            <button class="category-card" data-category="Fashion"><span>👟</span><strong>Fashion</strong><small>291 listings</small></button>
+            <button class="category-card" data-category="Hostel"><span>🛏️</span><strong>Hostel</strong><small>94 listings</small></button>
+            <button class="category-card" data-category="Services"><span>🛠️</span><strong>Services</strong><small>118 listings</small></button>
+            <button class="category-card" data-category="Others"><span>＋</span><strong>Others</strong><small>203 listings</small></button>
+          </div>
+
+          <div class="section-head">
+            <div><span class="eyebrow">NEAR YOU</span><h2>Fresh on campus</h2></div>
+            <button class="text-btn" data-view="marketplace">See marketplace →</button>
+          </div>
+          <div class="listing-grid" id="homeListings"></div>
+        </section>
+
+        <section class="view" id="marketplace">
+          <div class="page-title">
+            <div><span class="eyebrow">MARKETPLACE</span><h1>Everything students need.</h1><p>Browse verified student listings and connect directly.</p></div>
+            <button class="primary" data-view="sell">+ List an item</button>
+          </div>
+          <div class="trust-strip"><span>✓ School-aware</span><span>✓ Student profiles</span><span>✓ Direct messaging</span><span>✓ Campus pickup</span></div>
+          <div class="filterbar">
+            <div class="chips" id="categoryFilters">
+              <button class="chip active" data-filter="All">All</button>
+              <button class="chip" data-filter="Books">Books</button>
+              <button class="chip" data-filter="Electronics">Electronics</button>
+              <button class="chip" data-filter="Fashion">Fashion</button>
+              <button class="chip" data-filter="Hostel">Hostel</button>
+              <button class="chip" data-filter="Services">Services</button>
+            </div>
+            <select id="sortSelect"><option value="newest">Newest first</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select>
+          </div>
+          <div class="market-layout">
+            <aside class="filters">
+              <strong>Filter listings</strong>
+              <label>Campus<input placeholder="Your campus" value="Main Campus" /></label>
+              <label>Price range<input placeholder="₦ Min — ₦ Max" /></label>
+              <label class="check"><input type="checkbox" checked /> School verified sellers</label>
+              <label class="check"><input type="checkbox" /> Available today</label>
+              <button class="secondary full">Reset filters</button>
+            </aside>
+            <div class="market-results"><div class="result-meta"><span id="resultCount">12 items</span><span>Updated just now</span></div><div class="listing-grid" id="marketListings"></div></div>
+          </div></section>
+
+        <section class="view" id="categories">
+          <div class="page-title"><div><span class="eyebrow">CATEGORIES</span><h1>Find your next useful thing.</h1><p>Curated for everyday student life.</p></div></div>
+          <div class="category-large-grid" id="categoryLarge"></div></section>
+
+        <section class="view" id="saved">
+          <div class="page-title"><div><span class="eyebrow">YOUR SAVED ITEMS</span><h1>Keep your favourites close.</h1><p>Items you save will appear here.</p></div></div>
+          <div class="empty-state" id="savedState"><div>♡</div><h2>No saved items yet</h2><p>Tap the heart on any listing to save it for later.</p><button class="primary" data-view="marketplace">Browse listings</button></div>
+          <div class="listing-grid" id="savedListings"></div></section>
+
+        <section class="view" id="messages">
+          <div class="page-title"><div><span class="eyebrow">MESSAGES</span><h1>Chat with students.</h1><p>Keep buying and selling conversations in one place.</p></div></div>
+          <div class="messages-layout">
+            <div class="conversation-list" id="conversationList"></div>
+            <div class="chat-panel">
+              <div class="chat-head"><div class="avatar large">AM</div><div><strong>Amaka Mercy</strong><small>● Online · Verified student</small></div><button>•••</button></div>
+              <div class="chat-body">
+                <div class="date-line">Today</div>
+                <div class="bubble incoming">Hi! Is the calculator still available?</div>
+                <div class="bubble outgoing">Yes, it is. You can pick it up after my 2pm class.</div>
+                <div class="bubble incoming">Perfect. I'll meet you at the library entrance.</div>
+              </div>
+              <div class="chat-compose"><input placeholder="Write a message..." /><button>➤</button></div>
+            </div>
+          </div></section>
+
+        <section class="view" id="sell">
+          <div class="page-title"><div><span class="eyebrow">SELL ON STUDMART</span><h1>Turn unused things into value.</h1><p>Create a clean listing in less than a minute.</p></div></div>
+          <div class="sell-layout">
+            <form class="sell-form" id="sellForm">
+              <div class="upload-box"><div>＋</div><strong>Add product photos</strong><small>Up to 5 photos · JPG or PNG</small></div>
+              <div class="form-grid">
+                <label>Item name<input required placeholder="e.g. Engineering Mathematics textbook" /></label>
+                <label>Category<select required><option>Books</option><option>Electronics</option><option>Fashion</option><option>Hostel</option><option>Services</option><option>Others</option></select></label>
+                <label>Price (₦)<input required type="number" placeholder="25,000" /></label>
+                <label>Condition<select><option>New</option><option>Like new</option><option>Good</option><option>Fair</option></select></label>
+              </div>
+              <label>Description<textarea rows="5" placeholder="Tell buyers what they should know..."></textarea></label>
+              <label>Pickup location<input placeholder="e.g. Main Campus, Library Gate" /></label>
+              <button class="primary full" type="submit">Publish listing →</button>
+            </form>
+            <aside class="sell-tip"><span class="eyebrow">SELLER TIP</span><h2>Good listings sell faster.</h2><ul><li>Use bright, clear photos.</li><li>Be honest about the condition.</li><li>Include your campus pickup point.</li><li>Reply quickly to interested students.</li></ul></aside>
+          </div></section>
+
+        <section class="view" id="profile">
+          <div class="profile-auth" id="profileAuth">
+            <div class="auth-intro"><span class="eyebrow">WELCOME TO STUDMART</span><h1>Buy, sell and connect on campus.</h1><p>Sign in to manage your listings, save useful finds, and chat with verified students.</p><div class="auth-trust"><span>✓ School-focused marketplace</span><span>✓ Verified student community</span></div></div>
+            <div class="auth-card">
+              <div class="auth-tabs"><button class="auth-tab active" type="button" data-auth-mode="login">Log in</button><button class="auth-tab" type="button" data-auth-mode="signup">Create account</button></div>
+              <form class="auth-form" id="loginForm">
+                <div class="auth-form-head"><h2>Welcome back</h2><p>Log in to continue to your profile.</p></div>
+                <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
+                <label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required /></label>
+                <button class="primary full" type="submit">Log in →</button>
+                <small class="auth-error" id="loginError" role="alert"></small>
+              </form>
+              <form class="auth-form hidden" id="signupForm">
+                <div class="auth-form-head"><h2>Create your account</h2><p>Join students buying and selling around campus.</p></div>
+                <label>Full name<input name="name" autocomplete="name" placeholder="e.g. Alex Okafor" required /></label>
+                <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
+                <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required /></label>
+                <button class="primary full" type="submit">Create account →</button>
+                <small class="auth-error" id="signupError" role="alert"></small>
+              </form>
+              <small class="auth-footnote">By continuing, you agree to keep STUDMART safe for students.</small>
+            </div>
+          </div>
+          <div class="profile-dashboard hidden" id="profileDashboard">
+            <div class="profile-cover"></div>
+            <div class="profile-head">
+              <div class="profile-avatar" id="profileAvatar">AO</div>
+              <div class="profile-main"><div class="verified-pill" id="profileVerified">✓ SCHOOL VERIFIED</div><h1 id="profileName">Alex Okafor</h1><p id="profileDetails">Computer Science · 300 Level · Main Campus</p><span id="profileMemberSince">Member since September 2026</span></div>
+              <div class="profile-actions"><button class="secondary" type="button">Edit profile</button><button class="text-btn" id="logoutBtn" type="button">Log out</button></div>
+            </div>
+            <div class="profile-stats"><div><strong id="profileListingsCount">24</strong><span>Listings</span></div><div><strong id="profileRating">4.9</strong><span>Seller rating</span></div><div><strong id="profileSales">31</strong><span>Successful sales</span></div><div><strong id="profileSavedCount">12</strong><span>Saved items</span></div></div>
+            <div class="profile-body"><div><span class="eyebrow">MY LISTINGS</span><h2>Active listings</h2><div class="listing-grid" id="profileListings"></div></div><aside class="profile-card"><span class="eyebrow">ABOUT</span><p>Student seller focused on affordable tech, books and everyday campus essentials.</p><div class="profile-row">📍 <span id="profileCampus">Main Campus</span></div><div class="profile-row">🎓 <span id="profileDepartment">Computer Science</span></div><div class="profile-row">🛡️ Verified student</div></aside></div>
+          </div></section>
+      <footer class="site-footer">
+      
+      
+        <div class="footer-credit"> X-DEVS</div>
+      </footer>
+      </main>
+    </div>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <button data-view="home"><span>⌂</span>Home</button>
+    <button data-view="marketplace"><span>⌕</span>Shop</button>
+    <button data-view="sell"><span>＋</span>Sell</button>
+    <button data-view="messages"><span>◌</span>Chats</button>
+    <button data-view="profile"><span>◉</span>Profile</button>
+  </nav>
+
+  <div class="modal" id="listingModal">
+    <div class="modal-card">
+      <button class="modal-close">×</button>
+      <div class="modal-product" id="modalProduct">🎧</div>
+      <div class="modal-content">
+        <span class="tag" id="modalCategory">Electronics</span>
+        <h2 id="modalTitle">Noise-Cancelling Headphones</h2>
+        <div class="modal-price" id="modalPrice">₦45,000</div>
+        <p id="modalDesc">Great condition and lightly used. Perfect for lectures, study sessions and travel.</p>
+        <div class="seller-mini" id="modalSeller"></div>
+        <button class="primary full" id="messageSellerBtn" type="button">Message seller →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Done</div>
+  <div class="page-transition" id="pageTransition" aria-hidden="true">
+    <div class="transition-brand"><strong>STUD<span>MART</span></strong></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
