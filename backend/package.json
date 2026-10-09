@@ -1,0 +1,14 @@
+{
+  "name": "studmart-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "STUDMART student marketplace API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
