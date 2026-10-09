@@ -95,29 +95,7 @@ async function restoreAuth(){
   try{const payload=await apiRequest("/me");currentUser=payload.user;renderProfileState();}
   catch(error){localStorage.removeItem("studmartToken");localStorage.removeItem("studmartUser");currentUser=null;renderProfileState();}
 }
-function setupAuth(){
-  document.querySelectorAll("[data-auth-mode]").forEach(tab=>tab.addEventListener("click",()=>{
-    const mode=tab.dataset.authMode;
-    document.querySelectorAll("[data-auth-mode]").forEach(item=>item.classList.toggle("active",item===tab));
-    document.getElementById("loginForm")?.classList.toggle("hidden",mode!=="login");
-    document.getElementById("signupForm")?.classList.toggle("hidden",mode!=="signup");
-    setAuthError("loginError","");setAuthError("signupError","");
-  }));
-  document.getElementById("loginForm")?.addEventListener("submit",async event=>{
-    event.preventDefault();setAuthError("loginError","");
-    const form=new FormData(event.currentTarget);
-    try{const payload=await apiRequest("/auth/login",{method:"POST",body:JSON.stringify({email:form.get("email"),password:form.get("password")})});localStorage.setItem("studmartToken",payload.token);localStorage.setItem("studmartUser",JSON.stringify(payload.user));currentUser=payload.user;event.currentTarget.reset();renderProfileState();toast("Welcome back ✓");}
-    catch(error){setAuthError("loginError",error.message);}
-  });
-  document.getElementById("signupForm")?.addEventListener("submit",async event=>{
-    event.preventDefault();setAuthError("signupError","");
-    const form=new FormData(event.currentTarget);
-    try{const payload=await apiRequest("/auth/register",{method:"POST",body:JSON.stringify({name:form.get("name"),email:form.get("email"),password:form.get("password")})});localStorage.setItem("studmartToken",payload.token);localStorage.setItem("studmartUser",JSON.stringify(payload.user));currentUser=payload.user;event.currentTarget.reset();renderProfileState();toast("Account created ✓");}
-    catch(error){setAuthError("signupError",error.message);}
-  });
-  document.getElementById("logoutBtn")?.addEventListener("click",()=>{localStorage.removeItem("studmartToken");localStorage.removeItem("studmartUser");currentUser=null;renderProfileState();toast("You have been logged out");});
-  restoreAuth();
-}
+
 function setupSchoolSelector(){
   const stateSelect=document.getElementById("schoolState");
   const schoolSelect=document.getElementById("schoolName");
@@ -149,6 +127,131 @@ function setupSchoolSelector(){
     }
   }catch(error){}
   updateSchools();
+}
+function setupAuth() {
+  document.querySelectorAll("[data-auth-mode]").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const mode = tab.dataset.authMode;
+
+      document.querySelectorAll("[data-auth-mode]").forEach(item => {
+        item.classList.toggle("active", item === tab);
+      });
+
+      document.getElementById("loginForm")
+        ?.classList.toggle("hidden", mode !== "login");
+
+      document.getElementById("signupForm")
+        ?.classList.toggle("hidden", mode !== "signup");
+
+      setAuthError("loginError", "");
+      setAuthError("signupError", "");
+    });
+  });
+
+  // LOGIN
+  document.getElementById("loginForm")
+    ?.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const loginForm = event.currentTarget;
+      const form = new FormData(loginForm);
+
+      setAuthError("loginError", "");
+
+      try {
+        const payload = await apiRequest("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({
+            email: form.get("email"),
+            password: form.get("password")
+          })
+        });
+
+        if (!payload.token || !payload.user) {
+          throw new Error("The server returned an invalid login response.");
+        }
+
+        localStorage.setItem("studmartToken", payload.token);
+        localStorage.setItem(
+          "studmartUser",
+          JSON.stringify(payload.user)
+        );
+
+        currentUser = payload.user;
+        loginForm.reset();
+
+        renderProfileState();
+        showView("profile");
+        toast("Welcome back!");
+      } catch (error) {
+        setAuthError("loginError", error.message);
+      }
+    });
+
+  // REGISTRATION
+  document.getElementById("signupForm")
+    ?.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const signupForm = event.currentTarget;
+      const form = new FormData(signupForm);
+
+      setAuthError("signupError", "");
+
+      try {
+        const payload = await apiRequest("/auth/register", {
+          method: "POST",
+          body: JSON.stringify({
+            name: form.get("name"),
+            email: form.get("email"),
+            password: form.get("password")
+          })
+        });
+
+        if (!payload.token || !payload.user) {
+          throw new Error("The server returned an invalid registration response.");
+        }
+
+        localStorage.setItem("studmartToken", payload.token);
+        localStorage.setItem(
+          "studmartUser",
+          JSON.stringify(payload.user)
+        );
+
+        currentUser = payload.user;
+        signupForm.reset();
+
+        renderProfileState();
+        showView("profile");
+        toast("Account created successfully!");
+      } catch (error) {
+        setAuthError("signupError", error.message);
+      }
+    });
+
+  // LOGOUT
+  document.getElementById("logoutBtn")
+    ?.addEventListener("click", async () => {
+      try {
+        await apiRequest("/auth/logout", {
+          method: "POST"
+        });
+      } catch (error) {
+        // Clear the local session even if the server is unavailable.
+      }
+
+      localStorage.removeItem("studmartToken");
+      localStorage.removeItem("studmartUser");
+
+      currentUser = null;
+      renderProfileState();
+      showView("profile");
+
+      toast("You have been logged out.");
+    });
+
+  // RESTORE EXISTING SESSION
+  restoreAuth();
 }
 async function loadListingsFromApi(){
   try{
