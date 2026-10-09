@@ -1,6 +1,6 @@
 (() => {
 "use strict";
-const API_BASE=(window.STUDMART_API_URL||"http://localhost:3000/api").replace(/\/+$/,"");
+const API_URL = "https://studmart.onrender.com/api";
 const CATEGORIES=[
  {name:"Books & notes",emoji:"📚",hint:"Textbooks and study notes"},
  {name:"Tech & gadgets",emoji:"🎧",hint:"Phones, laptops and accessories"},
