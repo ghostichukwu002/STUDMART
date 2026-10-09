@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script>
+  window.STUDMART_API_URL = "https://studmart.onrender.com/api";
+  </script>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#701d3a">
   <meta name="description" content="STUDMART — your campus marketplace. Buy, sell and connect with students.">
@@ -113,8 +116,5 @@
 
 <div class="modal" id="productModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-card"><button class="modal-close" id="closeModal" aria-label="Close">×</button><div id="modalContent"></div></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script>/* Set this to your deployed backend API base, e.g. https://your-service.onrender.com/api */ window.STUDMART_API_URL = "http://localhost:3000/api";</script>
-<script>
-  window.STUDMART_API_URL = "https://studmart.onrender.com";
-</script>
+<script src="./app.js" defer></script>
 </body></html>
