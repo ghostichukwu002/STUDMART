@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff"><meta name="description" content="Shops on STUDMART campus marketplace">
+<title>Campus shops · STUDMART</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./shops.css">
+</head><body>
+<header class="nav">
+  <a class="brand" href="./index.html"><span class="logo">s<span>m</span></span><span>STUD<span class="light">MART</span><small>YOUR CAMPUS. YOUR MARKETPLACE.</small></span></a>
+  <div class="nav-actions"><a class="plain" href="./index.html">Marketplace</a><a class="btn dark small" href="./index.html#shops">Open a shop <b>↗</b></a></div>
+</header>
+<main class="shops-page">
+  <!-- directory of shops -->
+  <section id="dirView">
+    <div class="eyebrow">SHOPS ON CAMPUS</div>
+    <h1>Shop local<span>.</span></h1>
+    <p class="shops-sub">Shops are separate from personal accounts. Each one has its own listings, address and contact.</p>
+    <div id="shopGrid" class="shop-grid" aria-live="polite"></div>
+  </section>
+  <!-- one shop and its listings -->
+  <section id="shopView" hidden>
+    <a class="back-link" href="./shops.html">← All shops</a>
+    <header class="shop-head" id="shopHead"></header>
+    <div class="grid" id="shopListings" aria-live="polite"></div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script src="./shops.js" defer></script>
+</body></html>
