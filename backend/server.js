@@ -1,0 +1,593 @@
+'use strict';
+// STUDMART API. Only Node built-ins (Node 18+), so there is nothing to npm install.
+//
+// Auth:     POST /api/auth/register · POST /api/auth/login · POST /api/auth/forgot-password
+//           POST /api/auth/reset-password · GET /api/auth/me · PATCH /api/auth/profile
+//           POST /api/auth/change-password
+// Listings: GET /api/listings?category=&q= · POST /api/listings · GET /api/listings/:id
+//           PATCH /api/listings/:id · DELETE /api/listings/:id · POST /api/listings/:id/save
+//           GET /api/me/listings · GET /api/me/saved
+// Other:    GET /health
+
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+// ---------- configuration ----------
+const PORT = Number(process.env.PORT) || 10000; // Render sets PORT automatically
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json');
+const TOKEN_TTL_SECONDS = Number(process.env.TOKEN_TTL_SECONDS) || 7 * 24 * 60 * 60;
+const RESET_TTL_MS = 60 * 60 * 1000; // password reset links last 1 hour
+const MAX_BODY_BYTES = 64 * 1024;
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+const FRONTEND_URL = (process.env.FRONTEND_URL || ALLOWED_ORIGINS.find((o) => o !== '*') || '')
+  .replace(/\/+$/, '');
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_API_URL = process.env.RESEND_API_URL || 'https://api.resend.com/emails';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'STUDMART <onboarding@resend.dev>';
+
+const CATEGORIES = ['Electronics', 'Books', 'Fashion', 'Hostel'];
+const CONDITIONS = ['New', 'Like new', 'Good', 'Fair'];
+const MAX_PRICE = 10000000;
+
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('[studmart] JWT_SECRET is not set. Using a temporary secret: all sessions reset on restart.');
+}
+if (!FRONTEND_URL) console.warn('[studmart] FRONTEND_URL is not set. Password reset links will be broken.');
+if (!RESEND_API_KEY) console.warn('[studmart] RESEND_API_KEY is not set. Password reset emails will not be sent.');
+
+// ---------- tiny JSON file store ----------
+// Fine for launch and demos. On Render's free disk, data is lost on redeploy,
+// so move to Postgres (or another database) before going live with real users.
+function emptyDb() {
+  return { users: [], resets: [], listings: [], saves: [] };
+}
+function loadDb() {
+  try {
+    return { ...emptyDb(), ...JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) };
+  } catch {
+    return emptyDb();
+  }
+}
+const db = loadDb();
+
+function saveDb() {
+  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+  const tmp = `${DATA_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, DATA_FILE); // atomic replace: a crash never leaves a half-written file
+}
+
+// ---------- helpers ----------
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const clean = (v) => (typeof v === 'string' ? v.trim() : '');
+const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
+const now = () => new Date().toISOString();
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(password, salt, 64);
+  return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+function verifyPassword(password, stored) {
+  const [alg, saltHex, hashHex] = String(stored || '').split('$');
+  if (alg !== 'scrypt' || !saltHex || !hashHex) return false;
+  const expected = Buffer.from(hashHex, 'hex');
+  const actual = crypto.scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
+  return crypto.timingSafeEqual(expected, actual);
+}
+
+// Minimal HS256 JWT (header.payload.signature), signed with JWT_SECRET
+function issueToken(user) {
+  const t = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({
+    sub: user.id, email: user.email, iat: t, exp: t + TOKEN_TTL_SECONDS,
+  })).toString('base64url');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${sig}`;
+}
+
+function verifyToken(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) return null;
+  const [header, body, sig] = parts;
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest();
+  const given = Buffer.from(sig, 'base64url');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// Never send password hashes or reset data to the client.
+function publicUser(u) {
+  return {
+    id: u.id,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    name: u.name,
+    email: u.email,
+    school: u.school || '',
+    bio: u.bio || '',
+    createdAt: u.createdAt,
+    updatedAt: u.updatedAt || u.createdAt,
+  };
+}
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+const bad = (message) => new HttpError(400, message);
+
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new HttpError(413, 'Request is too large.'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (!chunks.length) return resolve({});
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        resolve(parsed && typeof parsed === 'object' ? parsed : {});
+      } catch {
+        reject(new HttpError(400, 'Invalid JSON body.'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function send(res, status, body) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(JSON.stringify(body));
+}
+
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes('*')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '600');
+}
+
+function currentUser(req) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token) throw new HttpError(401, 'Please log in first.');
+  const payload = verifyToken(token);
+  if (!payload) throw new HttpError(401, 'Your session has expired. Please log in again.');
+  const user = db.users.find((u) => u.id === payload.sub);
+  if (!user) throw new HttpError(401, 'Account not found. Please log in again.');
+  return user;
+}
+
+// Public pages can show more (e.g. "saved" flags) when the visitor is logged in
+function optionalUser(req) {
+  try {
+    return currentUser(req);
+  } catch {
+    return null;
+  }
+}
+
+// ---------- email (Resend HTTP API, no SDK needed) ----------
+async function sendEmail({ to, subject, text, html }) {
+  try {
+    const r = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, text, html }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) {
+      console.error(`[studmart] email failed (${r.status}): ${await r.text().catch(() => '')}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[studmart] email error:', err.message);
+    return false;
+  }
+}
+
+function resetEmail(user, link) {
+  const name = escapeHtml(user.firstName);
+  return {
+    subject: 'Reset your STUDMART password',
+    text: `Hi ${user.firstName},\n\nUse this link to set a new STUDMART password. It expires in 1 hour:\n${link}\n\nIf you didn't ask for this, you can ignore this email.`,
+    html: `<p>Hi ${name},</p>
+<p>Use this link to set a new STUDMART password. It expires in 1 hour.</p>
+<p><a href="${escapeHtml(link)}" style="display:inline-block;background:#ea580c;color:#fff;padding:12px 18px;border-radius:99px;text-decoration:none;font-weight:bold">Reset my password</a></p>
+<p style="color:#78716c;font-size:12px">If you didn't ask for this, you can ignore this email.</p>`,
+  };
+}
+
+// ---------- auth handlers ----------
+async function register(body, res) {
+  const firstName = clean(body.firstName);
+  const lastName = clean(body.lastName);
+  const school = clean(body.school);
+  const email = clean(body.email).toLowerCase();
+  const password = typeof body.password === 'string' ? body.password : '';
+
+  if (!firstName || !lastName) throw bad('Please enter your first and last name.');
+  if (!EMAIL_RE.test(email)) throw bad('Please enter a valid email address.');
+  if (password.length < 6) throw bad('Your password must be at least 6 characters.');
+  if (!school) throw bad('Please enter your school or campus.');
+  if (db.users.some((u) => u.email === email)) {
+    throw new HttpError(409, 'An account with this email already exists. Try logging in.');
+  }
+
+  const t = now();
+  const user = {
+    id: crypto.randomUUID(),
+    firstName,
+    lastName,
+    name: `${firstName} ${lastName}`,
+    email,
+    school,
+    bio: '',
+    passwordHash: hashPassword(password),
+    createdAt: t,
+    updatedAt: t,
+  };
+  db.users.push(user);
+  saveDb();
+
+  send(res, 201, { message: 'Account created successfully!', token: issueToken(user), user: publicUser(user) });
+}
+
+function login(body, res) {
+  const email = clean(body.email).toLowerCase();
+  const password = typeof body.password === 'string' ? body.password : '';
+  const user = db.users.find((u) => u.email === email);
+  if (!user || !verifyPassword(password, user.passwordHash)) {
+    throw new HttpError(401, 'Incorrect email or password.');
+  }
+  send(res, 200, { message: 'Logged in successfully!', token: issueToken(user), user: publicUser(user) });
+}
+
+// Always answers the same way, so the endpoint can't be used to check which emails have accounts.
+async function forgotPassword(body, res) {
+  const email = clean(body.email).toLowerCase();
+  const user = db.users.find((u) => u.email === email);
+
+  if (user) {
+    const token = crypto.randomBytes(32).toString('hex');
+    db.resets = db.resets.filter((r) => r.userId !== user.id && r.expiresAt > Date.now());
+    db.resets.push({ userId: user.id, tokenHash: sha256(token), expiresAt: Date.now() + RESET_TTL_MS });
+    saveDb();
+
+    const link = `${FRONTEND_URL}/#reset=${token}`;
+    if (RESEND_API_KEY) {
+      await sendEmail({ to: user.email, ...resetEmail(user, link) });
+    } else if (process.env.NODE_ENV !== 'production') {
+      console.log(`[studmart][dev] password reset link for ${email}: ${link}`);
+    }
+  }
+
+  send(res, 200, { message: 'If an account exists for that email, reset instructions will be sent.' });
+}
+
+function resetPassword(body, res) {
+  const token = clean(body.token);
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (password.length < 6) throw bad('Your password must be at least 6 characters.');
+
+  const record = db.resets.find((r) => r.tokenHash === sha256(token) && r.expiresAt > Date.now());
+  const user = record && db.users.find((u) => u.id === record.userId);
+  if (!user) throw bad('This reset link is invalid or has expired.');
+
+  user.passwordHash = hashPassword(password);
+  user.updatedAt = now();
+  db.resets = db.resets.filter((r) => r.userId !== user.id);
+  saveDb();
+  send(res, 200, { message: 'Password updated. You can log in now.' });
+}
+
+function updateProfile(user, body, res) {
+  const firstName = clean(body.firstName);
+  const lastName = clean(body.lastName);
+  const school = clean(body.school);
+  const bio = clean(body.bio);
+
+  if (!firstName || firstName.length > 40) throw bad('First name must be between 1 and 40 characters.');
+  if (!lastName || lastName.length > 40) throw bad('Last name must be between 1 and 40 characters.');
+  if (!school || school.length > 80) throw bad('School must be between 1 and 80 characters.');
+  if (bio.length > 300) throw bad('Bio must be 300 characters or fewer.');
+
+  Object.assign(user, { firstName, lastName, name: `${firstName} ${lastName}`, school, bio, updatedAt: now() });
+  saveDb();
+  send(res, 200, { message: 'Profile saved.', user: publicUser(user) });
+}
+
+function changePassword(user, body, res) {
+  const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
+  const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+  if (!verifyPassword(currentPassword, user.passwordHash)) {
+    // 400 (not 401) so the app doesn't treat a wrong current password as an expired session
+    throw bad('Your current password is incorrect.');
+  }
+  if (newPassword.length < 6) throw bad('Your new password must be at least 6 characters.');
+  user.passwordHash = hashPassword(newPassword);
+  user.updatedAt = now();
+  saveDb();
+  send(res, 200, { message: 'Password changed.' });
+}
+
+// ---------- listings ----------
+const LIMITS = { title: 80, description: 1000, pickup: 80, contact: 40, imageUrl: 500 };
+
+function sellerName(u) {
+  return `${u.firstName} ${(u.lastName || '')[0] || ''}.`.trim();
+}
+
+// What the public sees. Seller email and any password data are never included.
+function publicListing(l, viewerId) {
+  const seller = db.users.find((u) => u.id === l.sellerId);
+  return {
+    id: l.id,
+    title: l.title,
+    category: l.category,
+    condition: l.condition,
+    price: l.price,
+    pickup: l.pickup,
+    contact: l.contact,
+    description: l.description,
+    imageUrl: l.imageUrl,
+    status: l.status,
+    createdAt: l.createdAt,
+    updatedAt: l.updatedAt,
+    seller: seller
+      ? { name: sellerName(seller), school: seller.school }
+      : { name: 'Student seller', school: '' },
+    isOwner: !!viewerId && viewerId === l.sellerId,
+    saved: !!viewerId && db.saves.some((s) => s.userId === viewerId && s.listingId === l.id),
+  };
+}
+
+// On create every field is validated; on update only the fields sent are checked.
+function validateListing(body, { partial = false } = {}) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(body, k);
+  const out = {};
+
+  if (!partial || has('title')) {
+    const v = clean(body.title);
+    if (!v || v.length > LIMITS.title) throw bad(`Title must be 1–${LIMITS.title} characters.`);
+    out.title = v;
+  }
+  if (!partial || has('category')) {
+    if (!CATEGORIES.includes(body.category)) throw bad('Choose a valid category.');
+    out.category = body.category;
+  }
+  if (!partial || has('condition')) {
+    if (!CONDITIONS.includes(body.condition)) throw bad('Choose a valid condition.');
+    out.condition = body.condition;
+  }
+  if (!partial || has('price')) {
+    const raw = typeof body.price === 'string' ? body.price.trim() : body.price;
+    const p = raw === '' || raw === null || raw === undefined ? NaN : Number(raw);
+    if (!Number.isInteger(p) || p < 0 || p > MAX_PRICE) {
+      throw bad(`Price must be a whole number of naira, from 0 to ${MAX_PRICE.toLocaleString('en-US')}.`);
+    }
+    out.price = p;
+  }
+  if (!partial || has('pickup')) {
+    const v = clean(body.pickup);
+    if (!v || v.length > LIMITS.pickup) throw bad(`Enter a pickup location (up to ${LIMITS.pickup} characters).`);
+    out.pickup = v;
+  }
+  if (!partial || has('description')) {
+    const v = clean(body.description);
+    if (!v || v.length > LIMITS.description) throw bad(`Description must be 1–${LIMITS.description} characters.`);
+    out.description = v;
+  }
+  if (!partial || has('contact')) {
+    const v = clean(body.contact);
+    if (v.length > LIMITS.contact) throw bad(`Contact must be ${LIMITS.contact} characters or fewer.`);
+    out.contact = v;
+  }
+  if (!partial || has('imageUrl')) {
+    const v = clean(body.imageUrl);
+    if (v && (!/^https:\/\//.test(v) || v.length > LIMITS.imageUrl)) {
+      throw bad('Photo link must start with https:// and be under 500 characters.');
+    }
+    out.imageUrl = v;
+  }
+  if (partial && has('status')) {
+    if (!['active', 'sold'].includes(body.status)) throw bad('Status must be "active" or "sold".');
+    out.status = body.status;
+  }
+  return out;
+}
+
+function listListings(viewer, query, res) {
+  const category = query.get('category');
+  const q = (query.get('q') || '').trim().toLowerCase().slice(0, 80);
+
+  let items = db.listings.filter((l) => !category || category === 'All' || l.category === category);
+  if (q) {
+    items = items.filter((l) => [l.title, l.description, l.pickup, l.category]
+      .some((v) => v.toLowerCase().includes(q)));
+  }
+  items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  send(res, 200, { listings: items.slice(0, 200).map((l) => publicListing(l, viewer && viewer.id)) });
+}
+
+function getListing(viewer, id, res) {
+  const l = db.listings.find((x) => x.id === id);
+  if (!l) throw new HttpError(404, 'Listing not found.');
+  send(res, 200, { listing: publicListing(l, viewer && viewer.id) });
+}
+
+function createListing(user, body, res) {
+  const data = validateListing(body);
+  const t = now();
+  const listing = { id: crypto.randomUUID(), sellerId: user.id, ...data, status: 'active', createdAt: t, updatedAt: t };
+  db.listings.push(listing);
+  saveDb();
+  send(res, 201, { message: 'Listing posted.', listing: publicListing(listing, user.id) });
+}
+
+function ownListing(user, id) {
+  const l = db.listings.find((x) => x.id === id);
+  if (!l) throw new HttpError(404, 'Listing not found.');
+  if (l.sellerId !== user.id) throw new HttpError(403, 'You can only change your own listings.');
+  return l;
+}
+
+function updateListing(user, id, body, res) {
+  const l = ownListing(user, id);
+  Object.assign(l, validateListing(body, { partial: true }), { updatedAt: now() });
+  saveDb();
+  send(res, 200, { message: 'Listing updated.', listing: publicListing(l, user.id) });
+}
+
+function deleteListing(user, id, res) {
+  const l = ownListing(user, id);
+  db.listings = db.listings.filter((x) => x.id !== l.id);
+  db.saves = db.saves.filter((s) => s.listingId !== l.id);
+  saveDb();
+  send(res, 200, { message: 'Listing deleted.' });
+}
+
+function toggleSave(user, id, res) {
+  if (!db.listings.some((x) => x.id === id)) throw new HttpError(404, 'Listing not found.');
+  const idx = db.saves.findIndex((s) => s.userId === user.id && s.listingId === id);
+  let saved;
+  if (idx >= 0) {
+    db.saves.splice(idx, 1);
+    saved = false;
+  } else {
+    db.saves.push({ userId: user.id, listingId: id, createdAt: now() });
+    saved = true;
+  }
+  saveDb();
+  send(res, 200, { saved });
+}
+
+function myListings(user, res) {
+  const items = db.listings
+    .filter((l) => l.sellerId === user.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  send(res, 200, { listings: items.map((l) => publicListing(l, user.id)) });
+}
+
+function mySaved(user, res) {
+  const items = db.saves
+    .filter((s) => s.userId === user.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((s) => db.listings.find((l) => l.id === s.listingId))
+    .filter(Boolean);
+  send(res, 200, { listings: items.map((l) => publicListing(l, user.id)) });
+}
+
+// ---------- routing ----------
+const UUID_PATH = '([0-9a-f-]{36})';
+
+async function dispatch(req, res, url) {
+  const { pathname, searchParams: query } = url;
+  const m = req.method;
+
+  if (m === 'GET' && (pathname === '/' || pathname === '/health')) {
+    return send(res, 200, { service: 'studmart-api', status: 'ok' });
+  }
+
+  // auth
+  if (m === 'GET' && pathname === '/api/auth/me') return send(res, 200, { user: publicUser(currentUser(req)) });
+  if (m === 'PATCH' && pathname === '/api/auth/profile') {
+    const user = currentUser(req);
+    return updateProfile(user, await readJson(req), res);
+  }
+  if (m === 'POST' && pathname === '/api/auth/change-password') {
+    const user = currentUser(req);
+    return changePassword(user, await readJson(req), res);
+  }
+  if (m === 'POST' && pathname === '/api/auth/register') return register(await readJson(req), res);
+  if (m === 'POST' && pathname === '/api/auth/login') return login(await readJson(req), res);
+  if (m === 'POST' && pathname === '/api/auth/forgot-password') return forgotPassword(await readJson(req), res);
+  if (m === 'POST' && pathname === '/api/auth/reset-password') return resetPassword(await readJson(req), res);
+
+  // listings
+  if (m === 'GET' && pathname === '/api/listings') return listListings(optionalUser(req), query, res);
+  if (m === 'POST' && pathname === '/api/listings') {
+    const user = currentUser(req);
+    return createListing(user, await readJson(req), res);
+  }
+  if (m === 'GET' && pathname === '/api/me/listings') return myListings(currentUser(req), res);
+  if (m === 'GET' && pathname === '/api/me/saved') return mySaved(currentUser(req), res);
+
+  let match = pathname.match(new RegExp(`^/api/listings/${UUID_PATH}/save$`));
+  if (match && m === 'POST') return toggleSave(currentUser(req), match[1], res);
+
+  match = pathname.match(new RegExp(`^/api/listings/${UUID_PATH}$`));
+  if (match) {
+    const id = match[1];
+    if (m === 'GET') return getListing(optionalUser(req), id, res);
+    if (m === 'PATCH') {
+      const user = currentUser(req);
+      return updateListing(user, id, await readJson(req), res);
+    }
+    if (m === 'DELETE') return deleteListing(currentUser(req), id, res);
+  }
+
+  return send(res, 404, { message: 'Route not found.' });
+}
+
+// ---------- server ----------
+const server = http.createServer(async (req, res) => {
+  setCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    return res.end();
+  }
+  const url = new URL(req.url, 'http://localhost');
+  url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+
+  try {
+    await dispatch(req, res, url);
+  } catch (err) {
+    if (err instanceof HttpError) return send(res, err.status, { message: err.message });
+    console.error(err);
+    return send(res, 500, { message: 'Something went wrong. Please try again.' });
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`[studmart] API listening on port ${PORT}`);
+});
