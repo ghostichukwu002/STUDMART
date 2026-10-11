@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff"><meta name="description" content="Post a listing on STUDMART">
+<title>Post a listing · STUDMART</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./post.css">
+</head><body>
+<header class="nav">
+  <a class="brand" href="./index.html"><span class="logo">s<span>m</span></span><span>STUD<span class="light">MART</span><small>YOUR CAMPUS. YOUR MARKETPLACE.</small></span></a>
+  <div class="nav-actions"><a class="plain" href="./index.html">Back to marketplace</a></div>
+</header>
+<main class="post-page">
+  <div id="gate" class="post-gate" hidden></div>
+  <section id="postArea" hidden>
+    <div class="eyebrow">NEW LISTING</div>
+    <h1>Post an item<span>.</span></h1>
+    <p class="post-sub" id="postWho"></p>
+    <form id="postForm" novalidate>
+      <label>Title<input name="title" maxlength="80" placeholder="e.g. Scientific calculator fx-991"></label>
+      <div class="post-row">
+        <label>Category<select name="category"><option>Electronics</option><option>Books</option><option>Fashion</option><option>Hostel</option></select></label>
+        <label>Condition<select name="condition"><option>New</option><option>Like new</option><option selected>Good</option><option>Fair</option></select></label>
+      </div>
+      <div class="post-row">
+        <label>Price (₦)<input name="price" type="number" min="0" max="10000000" step="1" inputmode="numeric" placeholder="e.g. 8500"></label>
+        <label>Pickup location<input name="pickup" maxlength="80" placeholder="e.g. Main gate"></label>
+      </div>
+      <label>WhatsApp / phone (optional)<input name="contact" maxlength="40" placeholder="e.g. 0803 000 0000"></label>
+      <label>Photo link (optional, https)<input name="imageUrl" maxlength="500" placeholder="https://…"></label>
+      <label>Description<textarea name="description" maxlength="1000" placeholder="Condition, what's included, why you're selling…"></textarea></label>
+      <button class="btn dark post-submit" id="postSubmit" type="submit"><span>Post listing</span><b>↗</b></button>
+      <div class="post-msg" id="postMsg" role="status"></div>
+    </form>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script src="./post.js" defer></script>
+</body></html>
