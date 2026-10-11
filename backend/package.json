@@ -1,0 +1,13 @@
+{
+  "name": "studmart-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "STUDMART auth API (register, login, forgot/reset password). No dependencies.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
