@@ -273,8 +273,8 @@ async function register(body, res) {
   if (!firstName || !lastName) throw bad('Please enter your first and last name.');
   if (!EMAIL_RE.test(email)) throw bad('Please enter a valid email address.');
   if (password.length < 6) throw bad('Your password must be at least 6 characters.');
-  if (!school) throw bad('Please enter your school or campus.');
   const accountType = body.accountType === 'shop' ? 'shop' : 'individual';
+  if (!school && accountType !== 'shop') throw bad('Please enter your school or campus.');
   const shop = accountType === 'shop' ? readShop(body, {}) : null;
   if (db.users.some((u) => u.email === email)) {
     throw new HttpError(409, 'An account with this email already exists. Try logging in.');
@@ -357,7 +357,7 @@ function updateProfile(user, body, res) {
 
   if (!firstName || firstName.length > 40) throw bad('First name must be between 1 and 40 characters.');
   if (!lastName || lastName.length > 40) throw bad('Last name must be between 1 and 40 characters.');
-  if (!school || school.length > 80) throw bad('School must be between 1 and 80 characters.');
+  if (school.length > 80 || (!school && user.accountType !== 'shop')) throw bad('School must be between 1 and 80 characters.');
   if (bio.length > 300) throw bad('Bio must be 300 characters or fewer.');
   const shopPatch = user.accountType === 'shop' ? { shop: readShop(body, user.shop || {}) } : {};
 

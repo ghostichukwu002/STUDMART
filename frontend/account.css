@@ -1,0 +1,37 @@
+/* profile and edit-profile pages */
+.acct{max-width:640px;margin:0 auto;padding:26px 18px 70px}
+.acct h1{font:800 32px Manrope,sans-serif;letter-spacing:-1.1px;margin:6px 0 4px}
+.acct h1 span{color:#ea580c}
+.acct-sub{font-size:12px;color:#78716c;margin:0 0 20px;line-height:1.6}
+.acct-card{background:#fff;border:1px solid #fde3c9;border-radius:16px;padding:20px;margin-bottom:16px}
+.acct-card h2{font:800 16px Manrope,sans-serif;letter-spacing:-.4px;margin:0 0 12px}
+.acct-who{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.acct-avatar{width:56px;height:56px;border-radius:50%;background:#ea580c;color:#fff;display:grid;place-items:center;font:800 20px Manrope,sans-serif;flex:none}
+.acct-who b{font:800 20px Manrope,sans-serif;display:block}
+.acct-who small{font-size:11px;color:#78716c}
+.acct-tag{display:inline-block;margin-top:6px;padding:3px 9px;border-radius:99px;background:#fff7ed;color:#c2410c;font-size:10px;font-weight:800}
+.acct-row{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:12px;line-height:1.6;margin:0 0 6px}
+.acct-row dt{color:#78716c;font-weight:700}
+.acct-row dd{margin:0;color:#1c1917;word-break:break-word}
+.acct-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.acct-actions .btn{min-height:42px;padding:0 16px}
+.acct label{display:block;font-size:11px;font-weight:700;color:#44403c;margin-bottom:12px}
+.acct input,.acct textarea{display:block;width:100%;margin-top:6px;border:1px solid #fde3c9;border-radius:12px;background:#fff;padding:12px 14px;font:inherit;font-size:13px;color:#1c1917;outline:none}
+.acct textarea{min-height:90px;resize:vertical}
+.acct input:focus,.acct textarea:focus{border-color:#fb923c;box-shadow:0 0 0 3px #ea580c26}
+.acct .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.acct .msg{font-size:12px;min-height:18px;margin-top:10px;color:#9c493e;line-height:1.5}
+.acct .verify-state{font-size:12px;color:#44403c;line-height:1.6;display:flex;gap:8px;align-items:center;margin:0 0 12px}
+.acct .verify-state.ok{color:#0369a1;font-weight:700}
+.acct .tick{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#1d9bf0;color:#fff;font-size:9px;font-weight:800;flex:none}
+.acct .mrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #fde3c9;flex-wrap:wrap}
+.acct .mrow b{display:block;font-size:13px}
+.acct .mrow small{font-size:11px;color:#78716c}
+.acct .mrow-actions{display:flex;gap:6px;flex-wrap:wrap}
+.acct .mrow-actions button,.acct .mrow-actions a{border:1px solid #fde3c9;background:#fff;border-radius:99px;padding:6px 12px;font:inherit;font-size:11px;font-weight:700;color:#1c1917;cursor:pointer;text-decoration:none}
+.acct .mrow-actions button.danger{color:#9c493e}
+.acct .empty{font-size:12px;color:#78716c;padding:10px 0}
+.acct .back{display:inline-block;font-size:12px;font-weight:700;color:#c2410c;text-decoration:none;margin-bottom:10px}
+.acct .gate{background:#fff;border:1px solid #fde3c9;border-radius:16px;padding:26px;text-align:center}
+.acct .gate p{font-size:12px;color:#44403c;line-height:1.6;margin:0 0 16px}
+@media(max-width:560px){.acct .row2{grid-template-columns:1fr}.acct-row{grid-template-columns:1fr}}

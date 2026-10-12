@@ -11,8 +11,9 @@
 
 ## Features
 - Personal accounts: sign up, log in, stay logged in across reloads, log out
-- Shop accounts: a separate kind of account with a shop name, campus address, WhatsApp number and description. Sign up from the "Shop account" tab or "Open a shop account" on the home page.
-- Profile: name, school, bio; shop details for shop accounts; change password
+- Shop accounts: a separate kind of account with a shop name, address (any town or area, not tied to a school), WhatsApp number and description. Shop sign-up does not ask for a school. Sign up from the "Shop account" tab or "Open a shop account" on the home page.
+- Profile page (`profile.html`): see your details, verification status and your listings, with Edit, Mark sold and Delete.
+- Edit profile page (`edit-profile.html`): change your name, school and bio (personal accounts), or your shop details (shop accounts), and change your password.
 - Posting: "Sell an item" opens the post page. Posting only needs you to be logged in.
 - Listings: edit, mark sold/available, delete, search and category filters
 - Save listings (♡) and view them under "Saved"

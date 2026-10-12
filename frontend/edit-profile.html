@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff"><meta name="robots" content="noindex">
+<title>Edit profile · STUDMART</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./account.css">
+</head><body>
+<header class="nav">
+  <a class="brand" href="./index.html"><span class="logo">s<span>m</span></span><span>STUD<span class="light">MART</span><small>YOUR CAMPUS. YOUR MARKETPLACE.</small></span></a>
+  <div class="nav-actions"><a class="plain" href="./profile.html">Back to profile</a></div>
+</header>
+<main class="acct">
+  <div id="gate" class="gate" hidden></div>
+  <section id="editArea" hidden>
+    <a class="back" href="./profile.html">← Back to profile</a>
+    <h1 id="editTitle">Edit profile<span>.</span></h1>
+    <p class="acct-sub" id="editSub"></p>
+
+    <form class="acct-card" id="profileForm" novalidate>
+      <h2>Your details</h2>
+      <div class="row2">
+        <label>First name<input name="firstName" maxlength="40" autocomplete="given-name"></label>
+        <label>Last name<input name="lastName" maxlength="40" autocomplete="family-name"></label>
+      </div>
+      <div id="personalFields">
+        <label>School / campus<input name="school" maxlength="80" autocomplete="organization"></label>
+        <label>Bio<textarea name="bio" maxlength="300" placeholder="What you study, what you sell, what you're looking for…"></textarea></label>
+      </div>
+      <div id="shopFields" hidden>
+        <label>Shop name<input name="shopName" maxlength="60"></label>
+        <label>Shop address (any town or area)<input name="shopAddress" maxlength="120" placeholder="e.g. 12 Market Road, Enugu"></label>
+        <label>Shop WhatsApp / phone<input name="shopPhone" maxlength="40" placeholder="e.g. 0803 000 0000"></label>
+        <label>Shop description<textarea name="shopDescription" maxlength="400"></textarea></label>
+      </div>
+      <button class="btn dark" id="saveBtn" type="submit"><span>Save changes</span><b>↗</b></button>
+      <p class="msg" id="profileMsg" role="status"></p>
+    </form>
+
+    <form class="acct-card" id="passwordForm" novalidate>
+      <h2>Change password</h2>
+      <label>Current password<input name="currentPassword" type="password" autocomplete="current-password"></label>
+      <label>New password<input name="newPassword" type="password" minlength="6" autocomplete="new-password"></label>
+      <button class="btn light" type="submit"><span>Update password</span></button>
+      <p class="msg" id="passwordMsg" role="status"></p>
+    </form>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script src="./edit-profile.js" defer></script>
+</body></html>

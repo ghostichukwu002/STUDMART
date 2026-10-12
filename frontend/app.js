@@ -1,8 +1,6 @@
 (() => {
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const auth=$("#auth"), form=$("#authForm"), msg=$("#message"), toast=$("#toast");
-const profile=$("#profile"), profileForm=$("#profileForm"), profileMsg=$("#profileMsg");
-const passwordForm=$("#passwordForm"), passwordMsg=$("#passwordMsg");
 const listingModal=$("#listingModal"), sellModal=$("#sellModal"), sellForm=$("#sellForm"), sellMsg=$("#sellMsg");
 const resetModal=$("#resetModal"), resetForm=$("#resetForm"), resetMsg=$("#resetMsg");
 const USER_KEY="studmart_user", TOKEN_KEY="studmart_token", GREEN="#50742a", RED="#9c493e";
@@ -116,7 +114,6 @@ function render(){
 }
 function signOut(reason){
   token=null;user=null;clearToken();render();
-  closeModal(profile);
   if(reason)notice(reason);
   loadListings();
 }
@@ -148,7 +145,7 @@ function handleSessionError(err,target){
 }
 
 // ---------- login / sign-up ----------
-function setMode(m){mode=m==="login"?"login":m==="shop"?"shop":"signup";const up=mode!=="login",shop=mode==="shop";$$(".tabs button").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));$("#names").style.display=up?"grid":"none";$("#school").style.display=up?"block":"none";$("#shopFields").hidden=!shop;$("#extras").style.display=mode==="login"?"flex":"none";$("#authTitle").innerHTML=shop?"Your shop, on campus<span>.</span>":up?"Your campus era<span>.</span>":"Good to see you<span>.</span>";$("#authSub").textContent=shop?"Create a shop account. It's separate from your personal account.":up?"Create your student account and get exploring.":"Log in to pick up where you left off.";$("#submitText").textContent=shop?"Create shop account":up?"Create my account":"Log in to STUDMART";$("#switchText").textContent=mode==="login"?"New around here?":"Already have an account?";$("#switchMode").textContent=mode==="login"?"Create an account":"Log in";$("#password").autocomplete=up?"new-password":"current-password";msg.textContent=""}
+function setMode(m){mode=m==="login"?"login":m==="shop"?"shop":"signup";const up=mode!=="login",shop=mode==="shop";$$(".tabs button").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));$("#names").style.display=up?"grid":"none";$("#school").style.display=up&&!shop?"block":"none";$("#shopFields").hidden=!shop;$("#extras").style.display=mode==="login"?"flex":"none";$("#authTitle").innerHTML=shop?"Your shop, on campus<span>.</span>":up?"Your campus era<span>.</span>":"Good to see you<span>.</span>";$("#authSub").textContent=shop?"Create a shop account. It's separate from your personal account.":up?"Create your student account and get exploring.":"Log in to pick up where you left off.";$("#submitText").textContent=shop?"Create shop account":up?"Create my account":"Log in to STUDMART";$("#switchText").textContent=mode==="login"?"New around here?":"Already have an account?";$("#switchMode").textContent=mode==="login"?"Create an account":"Log in";$("#password").autocomplete=up?"new-password":"current-password";msg.textContent=""}
 function openAuth(m){setMode(m);auth.classList.add("open");auth.setAttribute("aria-hidden","false");document.body.style.overflow="hidden";setTimeout(()=>(m!=="login"?$('input[name="firstName"]'):$('input[name="email"]'))?.focus({preventScroll:true}),180)}
 function closeAuth(){auth.classList.remove("open");auth.setAttribute("aria-hidden","true");if(!document.querySelector(".auth.open"))document.body.style.overflow="";msg.textContent=""}
 
@@ -158,12 +155,12 @@ form.addEventListener("submit",async e=>{
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email||"")){msg.textContent="Please enter a valid email address.";return}
   if((d.password||"").length<6){msg.textContent="Your password must be at least 6 characters.";return}
   const isShop=mode==="shop", isSignup=mode!=="login";
-  if(isSignup&&(!d.firstName?.trim()||!d.lastName?.trim()||!d.school?.trim())){msg.textContent="Please complete your name and school/campus.";return}
+  if(isSignup&&(!d.firstName?.trim()||!d.lastName?.trim()||(!isShop&&!d.school?.trim()))){msg.textContent="Please complete your name and school/campus.";return}
   if(isShop&&(!d.shopName?.trim()||!d.shopAddress?.trim()||!d.shopPhone?.trim())){msg.textContent="Please add your shop name, address and phone or WhatsApp.";return}
   const btn=$(".submit");btn.disabled=true;$("#submitText").textContent=isSignup?(isShop?"Creating shop…":"Creating account…"):"Logging in…";
   try{
     const payload=isSignup
-      ?{firstName:d.firstName.trim(),lastName:d.lastName.trim(),email:d.email.trim(),password:d.password,school:d.school.trim(),
+      ?{firstName:d.firstName.trim(),lastName:d.lastName.trim(),email:d.email.trim(),password:d.password,school:isShop?"":d.school.trim(),
         accountType:isShop?"shop":"individual",
         ...(isShop?{shopName:d.shopName.trim(),shopAddress:d.shopAddress.trim(),shopPhone:d.shopPhone.trim(),shopDescription:(d.shopDescription||"").trim()}:{})}
       :{email:d.email.trim(),password:d.password};
@@ -205,84 +202,9 @@ resetForm.addEventListener("submit",async e=>{
   }catch(err){resetMsg.style.color=RED;resetMsg.textContent=err.message}
 });
 
-// ---------- profile ----------
-function fillProfileForm(){
-  if(!user)return;
-  const f=profileForm.elements;
-  f.firstName.value=user.firstName||"";f.lastName.value=user.lastName||"";
-  f.school.value=user.school||"";f.bio.value=user.bio||"";
-  $("#profileEmail").textContent=user.email||"";
-  const shop=user.accountType==="shop"&&user.shop;
-  $("#profileShop").hidden=!shop;
-  if(shop){f.shopName.value=user.shop.name||"";f.shopAddress.value=user.shop.address||"";f.shopPhone.value=user.shop.phone||"";f.shopDescription.value=user.shop.description||""}
-}
-function openProfile(){
-  if(!user){openAuth("login");return}
-  fillProfileForm();profileMsg.textContent="";passwordMsg.textContent="";passwordForm.reset();
-  renderVerify();
-  openModal(profile);
-  loadMyListings();
-  setTimeout(()=>profileForm.elements.firstName.focus({preventScroll:true}),180);
-}
-profileForm.addEventListener("submit",async e=>{
-  e.preventDefault();profileMsg.textContent="";
-  const f=profileForm.elements;
-  const body={firstName:f.firstName.value.trim(),lastName:f.lastName.value.trim(),school:f.school.value.trim(),bio:f.bio.value.trim()};
-  if(user&&user.accountType==="shop"){body.shopName=f.shopName.value.trim();body.shopAddress=f.shopAddress.value.trim();body.shopPhone=f.shopPhone.value.trim();body.shopDescription=f.shopDescription.value.trim()}
-  if(!body.firstName||!body.lastName||!body.school){profileMsg.style.color=RED;profileMsg.textContent="Please fill in your name and school.";return}
-  const btn=profileForm.querySelector("button[type=submit]");btn.disabled=true;btn.querySelector("span").textContent="Saving…";
-  try{
-    const d=await request(API_PATHS.profile,{method:"PATCH",body,auth:true});
-    setSession(d.user);fillProfileForm();
-    profileMsg.style.color=GREEN;profileMsg.textContent=d.message||"Profile saved.";notice("Profile saved.");
-  }catch(err){handleSessionError(err,profileMsg)}
-  finally{btn.disabled=false;btn.querySelector("span").textContent="Save profile"}
-});
-passwordForm.addEventListener("submit",async e=>{
-  e.preventDefault();passwordMsg.textContent="";
-  const f=passwordForm.elements;
-  const currentPassword=f.currentPassword.value,newPassword=f.newPassword.value;
-  if(newPassword.length<6){passwordMsg.style.color=RED;passwordMsg.textContent="Your new password must be at least 6 characters.";return}
-  try{
-    const d=await request(API_PATHS.password,{body:{currentPassword,newPassword},auth:true});
-    passwordForm.reset();passwordMsg.style.color=GREEN;passwordMsg.textContent=d.message||"Password changed.";
-  }catch(err){handleSessionError(err,passwordMsg)}
-});
+// Profile is its own page now: editing happens on edit-profile.html
+function openProfile(){if(!user){openAuth("login");return}location.href="./profile.html"}
 function logout(){signOut("You've been logged out.")}
-
-// ---------- student verification (blue tick) ----------
-function renderVerify(){
-  const box=$("#verifyBox");
-  if(!user){box.replaceChildren();return}
-  const status=(user.verification||{}).status||"none";
-  if(status==="approved"){
-    box.replaceChildren(el("p",{class:"verify-state ok"},tick(true),"Your account is verified. Buyers see a blue tick on your listings."));
-    return;
-  }
-  if(status==="pending"){
-    box.replaceChildren(el("p",{class:"verify-state"},"Your student verification is under review. We'll email you once it's decided."));
-    return;
-  }
-  const vMsg=el("div",{class:"message",role:"status"});
-  if(status==="rejected")vMsg.textContent="Your last request wasn't approved. You can send a new one with a clearer student ID link.";
-  const url=el("input",{name:"studentIdUrl",type:"url",maxlength:"500",placeholder:"https://… link to a photo of your student ID"});
-  const note=el("textarea",{name:"note",maxlength:"300",placeholder:"Anything that helps us match you (optional)"});
-  const submit=el("button",{class:"btn dark submit",type:"submit"},el("span",{text:"Request verification"}),el("b",{text:"↗"}));
-  const vForm=el("form",{novalidate:true,onsubmit:async e=>{
-    e.preventDefault();vMsg.textContent="";vMsg.style.color=RED;
-    const studentIdUrl=url.value.trim();
-    if(!/^https:\/\//.test(studentIdUrl)){vMsg.textContent="Please paste an https:// link to your student ID.";return}
-    try{
-      const d=await request(API_PATHS.verification,{body:{studentIdUrl,note:note.value.trim()},auth:true});
-      setSession(d.user);renderVerify();notice(d.message||"Verification request sent.");
-    }catch(err){handleSessionError(err,vMsg)}
-  }},
-    el("p",{class:"verify-state"},"Get a blue tick by proving you're a student. Upload your student ID to a link you control (e.g. Google Drive, Imgur) and paste it here. Only STUDMART admins can see it."),
-    el("label",{},"Student ID link",url),
-    el("label",{},"Note (optional)",note),
-    submit,vMsg);
-  box.replaceChildren(vForm);
-}
 
 // ---------- listings: grid, filters, search ----------
 function stateMsg(t){return el("p",{class:"grid-state",text:t})}
@@ -387,7 +309,7 @@ async function setStatus(l,status){
     const d=await request(`${API_PATHS.listings}/${l.id}`,{method:"PATCH",body:{status},auth:true});
     Object.assign(l,d.listing);
     notice(status==="sold"?"Marked as sold.":"Listing is available again.");
-    loadListings();loadMyListings();
+    loadListings();
     if(detail&&detail.id===l.id)openListing(l.id);
   }catch(err){handleSessionError(err,toastTarget)}
 }
@@ -396,7 +318,7 @@ async function removeListing(l){
   try{
     await request(`${API_PATHS.listings}/${l.id}`,{method:"DELETE",auth:true});
     closeModal(listingModal);notice("Listing deleted.");
-    loadListings();loadMyListings();
+    loadListings();
   }catch(err){handleSessionError(err,toastTarget)}
 }
 
@@ -441,29 +363,10 @@ sellForm.addEventListener("submit",async e=>{
       :await request(API_PATHS.listings,{body,auth:true});
     closeModal(sellModal);notice(id?"Listing updated.":"Your listing is live.");
     if(category==="Saved")category="All",$$(".chip").forEach(c=>c.classList.toggle("active",c.dataset.cat==="All"));
-    loadListings();loadMyListings();
+    loadListings();
   }catch(err){handleSessionError(err,sellMsg)}
   finally{btn.disabled=false}
 });
-
-// ---------- your listings (inside the profile panel) ----------
-async function loadMyListings(){
-  const box=$("#myListings");
-  if(!user){box.replaceChildren();return}
-  box.replaceChildren(el("p",{class:"empty",text:"Loading…"}));
-  try{
-    const d=await request(API_PATHS.myListings,{method:"GET",auth:true});
-    if(!d.listings.length){box.replaceChildren(el("p",{class:"empty",text:"You haven't posted anything yet."}));return}
-    box.replaceChildren(...d.listings.map(l=>el("div",{class:"mrow"},
-      el("div",{},el("b",{text:l.title}),el("small",{text:`${money(l.price)} · ${l.status==="sold"?"Sold":"Active"}`})),
-      el("div",{class:"mrow-actions"},
-        el("button",{type:"button",text:"Edit",onclick:()=>openSell(l)}),
-        el("button",{type:"button",text:l.status==="sold"?"Reopen":"Mark sold",onclick:()=>setStatus(l,l.status==="sold"?"active":"sold")}),
-        el("button",{type:"button",text:"Delete",onclick:()=>removeListing(l)})))));
-  }catch(err){
-    box.replaceChildren(el("p",{class:"empty",text:`Couldn't load your listings: ${err.message}`}));
-  }
-}
 
 // ---------- wiring ----------
 $$("[data-auth]").forEach(b=>b.addEventListener("click",()=>user?openProfile():openAuth(b.dataset.auth)));
@@ -475,7 +378,6 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeAuth();$$(".au
 $("#showPass").addEventListener("click",()=>{const p=$("#password");p.type=p.type==="password"?"text":"password";$("#showPass").textContent=p.type==="password"?"Show":"Hide"});
 $("#openProfile").addEventListener("click",openProfile);
 $("#logout").addEventListener("click",logout);
-$("#logoutProfile").addEventListener("click",logout);
 $("#hamb").addEventListener("click",()=>$("#navLinks").classList.toggle("open"));$("#navLinks").querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>$("#navLinks").classList.remove("open")));
 $$(".chip").forEach(c=>c.addEventListener("click",()=>{
   if(c.dataset.cat==="Saved"&&!user){openAuth("login");return}
