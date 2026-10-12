@@ -213,3 +213,5 @@ html[data-theme="dark"] .marker:after{background:#c2410c}
 .lamp-stage-m{display:none}
 @media(max-width:720px){.auth-art .lamp-stage{display:none}.lamp-stage-m{display:flex;min-height:200px;margin:0 0 16px}}
 @media (prefers-reduced-motion:reduce){.auth.open *,.auth.open *::before,.auth.open *::after{animation:none!important}.lamp-text{opacity:1}}
+/* listing safety notice */
+.lm-safety{margin:14px 0 0;padding:10px 12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);font-size:12px;line-height:1.6;color:var(--ink-2)}
