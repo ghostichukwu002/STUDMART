@@ -164,3 +164,6 @@ html[data-theme="dark"] .tile-b{background:#fdba74}
 .plain{white-space:nowrap}
 html[data-theme="dark"] .marker:after{background:#c2410c}
 @media (prefers-color-scheme:dark){html:not([data-theme="light"]) .marker:after{background:#c2410c}}
+@media(max-width:720px){.theme-toggle{width:30px;height:30px}.theme-toggle svg{width:15px;height:15px}.nav-actions{gap:6px}.nav .brand small{display:block}}
+@media(max-width:370px){.theme-toggle{width:28px;height:28px}.nav-actions{gap:4px}}
+@media(max-width:720px){.nav{gap:8px}}
