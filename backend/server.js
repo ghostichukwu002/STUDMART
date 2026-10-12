@@ -51,7 +51,7 @@ if (!RESEND_API_KEY) console.warn('[studmart] RESEND_API_KEY is not set. Passwor
 // Fine for launch and demos. On Render's free disk, data is lost on redeploy,
 // so move to Postgres (or another database) before going live with real users.
 function emptyDb() {
-  return { users: [], resets: [], listings: [], saves: [], billboard: [] };
+  return { users: [], resets: [], listings: [], saves: [], billboard: [], reports: [], blocks: [] };
 }
 function loadDb() {
   try {
@@ -206,6 +206,7 @@ function currentUser(req) {
   if (!payload) throw new HttpError(401, 'Your session has expired. Please log in again.');
   const user = db.users.find((u) => u.id === payload.sub);
   if (!user) throw new HttpError(401, 'Account not found. Please log in again.');
+  if (user.suspended) throw new HttpError(403, 'This account has been suspended. Contact support.');
   return user;
 }
 
@@ -310,6 +311,7 @@ function login(body, res) {
   if (!user || !verifyPassword(password, user.passwordHash)) {
     throw new HttpError(401, 'Incorrect email or password.');
   }
+  if (user.suspended) throw new HttpError(403, 'This account has been suspended. Contact support.');
   send(res, 200, { message: 'Logged in successfully!', token: issueToken(user), user: publicUser(user) });
 }
 
@@ -410,6 +412,7 @@ function publicListing(l, viewerId) {
     updatedAt: l.updatedAt,
     seller: seller
       ? {
+          id: seller.id,
           name: seller.accountType === 'shop' && seller.shop ? seller.shop.name : sellerName(seller),
           school: seller.school,
           type: seller.accountType === 'shop' ? 'shop' : 'individual',
@@ -483,6 +486,8 @@ function listListings(viewer, query, res) {
   const q = (query.get('q') || '').trim().toLowerCase().slice(0, 80);
 
   let items = db.listings.filter((l) => !category || category === 'All' || l.category === category);
+  const hidden = hiddenSellerIds(viewer);
+  items = items.filter((l) => !hidden.has(l.sellerId));
   if (q) {
     items = items.filter((l) => [l.title, l.description, l.pickup, l.category]
       .some((v) => v.toLowerCase().includes(q)));
@@ -515,8 +520,9 @@ function listShops(res) {
 function getShop(viewer, id, res) {
   const u = db.users.find((x) => x.id === id && x.accountType === 'shop' && x.shop);
   if (!u) throw new HttpError(404, 'Shop not found.');
+  const hidden = hiddenSellerIds(viewer);
   const listings = db.listings
-    .filter((l) => l.sellerId === u.id)
+    .filter((l) => l.sellerId === u.id && !hidden.has(l.sellerId))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 200)
     .map((l) => publicListing(l, viewer && viewer.id));
@@ -525,7 +531,7 @@ function getShop(viewer, id, res) {
 
 function getListing(viewer, id, res) {
   const l = db.listings.find((x) => x.id === id);
-  if (!l) throw new HttpError(404, 'Listing not found.');
+  if (!l || hiddenSellerIds(viewer).has(l.sellerId)) throw new HttpError(404, 'Listing not found.');
   send(res, 200, { listing: publicListing(l, viewer && viewer.id) });
 }
 
@@ -760,6 +766,122 @@ function adminDeleteListing(id, res) {
   send(res, 200, { message: 'Listing removed.' });
 }
 
+// ---------- reports and blocks ----------
+const REPORT_REASONS = ['scam', 'prohibited', 'fake', 'harassment', 'other'];
+
+// People a viewer should not see: sellers they blocked, and anyone who blocked them
+function hiddenSellerIds(viewer) {
+  const ids = new Set();
+  if (!viewer) return ids;
+  for (const b of db.blocks) {
+    if (b.blockerId === viewer.id) ids.add(b.blockedId);
+    if (b.blockedId === viewer.id) ids.add(b.blockerId);
+  }
+  return ids;
+}
+
+function createReport(user, body, res) {
+  const targetType = body.targetType === 'user' || body.targetType === 'listing' ? body.targetType : null;
+  if (!targetType) throw bad('Choose what you are reporting.');
+  const targetId = clean(body.targetId);
+  if (!REPORT_REASONS.includes(body.reason)) throw bad('Choose a reason for the report.');
+  const details = clean(body.details).slice(0, 300);
+  let ownerId;
+  if (targetType === 'listing') {
+    const l = db.listings.find((x) => x.id === targetId);
+    if (!l) throw new HttpError(404, 'Listing not found.');
+    ownerId = l.sellerId;
+  } else {
+    const u = db.users.find((x) => x.id === targetId);
+    if (!u) throw new HttpError(404, 'User not found.');
+    ownerId = u.id;
+  }
+  if (ownerId === user.id) throw bad("You can't report your own listing or account.");
+  const already = db.reports.some((r) => r.reporterId === user.id && r.targetType === targetType
+    && r.targetId === targetId && r.status === 'open');
+  if (already) throw new HttpError(409, "You've already reported this. An admin will review it.");
+  db.reports.push({ id: crypto.randomUUID(), reporterId: user.id, targetType, targetId, reason: body.reason,
+    details, status: 'open', createdAt: now() });
+  saveDb();
+  send(res, 201, { message: "Thanks. We'll review your report." });
+}
+
+function setBlock(user, targetId, block, res) {
+  const target = db.users.find((u) => u.id === targetId);
+  if (!target) throw new HttpError(404, 'User not found.');
+  if (target.id === user.id) throw bad("You can't block yourself.");
+  const i = db.blocks.findIndex((b) => b.blockerId === user.id && b.blockedId === target.id);
+  if (block && i < 0) db.blocks.push({ blockerId: user.id, blockedId: target.id, createdAt: now() });
+  if (!block && i >= 0) db.blocks.splice(i, 1);
+  saveDb();
+  send(res, 200, { blocked: block });
+}
+
+function myBlocks(user, res) {
+  send(res, 200, { userIds: db.blocks.filter((b) => b.blockerId === user.id).map((b) => b.blockedId) });
+}
+
+function adminListReports(query, res) {
+  const status = query.get('status') || 'open';
+  const items = db.reports
+    .filter((r) => status === 'all' || r.status === status)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 200)
+    .map((r) => {
+      const reporter = db.users.find((u) => u.id === r.reporterId);
+      let target;
+      if (r.targetType === 'listing') {
+        const l = db.listings.find((x) => x.id === r.targetId);
+        target = l ? { type: 'listing', id: l.id, title: l.title, price: l.price, listingStatus: l.status, sellerId: l.sellerId }
+          : { type: 'listing', id: r.targetId, gone: true };
+      } else {
+        const u = db.users.find((x) => x.id === r.targetId);
+        target = u ? { type: 'user', id: u.id, name: u.name, email: u.email, suspended: !!u.suspended }
+          : { type: 'user', id: r.targetId, gone: true };
+      }
+      return { id: r.id, reason: r.reason, details: r.details, status: r.status, createdAt: r.createdAt,
+        resolvedAt: r.resolvedAt || null,
+        reporter: reporter ? { name: reporter.name, email: reporter.email } : null, target };
+    });
+  send(res, 200, { reports: items });
+}
+
+function adminActOnReport(id, body, res) {
+  const r = db.reports.find((x) => x.id === id);
+  if (!r) throw new HttpError(404, 'Report not found.');
+  const action = body.action;
+  if (action === 'dismiss') {
+    r.status = 'dismissed';
+  } else if (action === 'remove_listing') {
+    if (r.targetType !== 'listing') throw bad('This report is about a person. Suspend the account instead.');
+    if (!db.listings.some((x) => x.id === r.targetId)) throw new HttpError(404, 'Listing already removed.');
+    db.listings = db.listings.filter((x) => x.id !== r.targetId);
+    db.saves = db.saves.filter((x) => x.listingId !== r.targetId);
+    r.status = 'actioned';
+  } else if (action === 'suspend_user') {
+    const listing = r.targetType === 'listing' ? db.listings.find((x) => x.id === r.targetId) : null;
+    const sellerId = r.targetType === 'user' ? r.targetId : listing && listing.sellerId;
+    const u = db.users.find((x) => x.id === sellerId);
+    if (!u) throw new HttpError(404, 'Account not found.');
+    u.suspended = true;
+    r.status = 'actioned';
+  } else {
+    throw bad('Choose dismiss, remove the listing, or suspend the account.');
+  }
+  r.resolvedAt = now();
+  saveDb();
+  send(res, 200, { status: r.status });
+}
+
+function adminSetSuspension(userId, body, res) {
+  const u = db.users.find((x) => x.id === userId);
+  if (!u) throw new HttpError(404, 'User not found.');
+  if (typeof body.suspended !== 'boolean') throw bad('Choose suspend or restore.');
+  u.suspended = body.suspended;
+  saveDb();
+  send(res, 200, { suspended: u.suspended });
+}
+
 // ---------- routing ----------
 const UUID_PATH = '([0-9a-f-]{36})';
 
@@ -929,6 +1051,24 @@ async function dispatch(req, res, url) {
   }
 
   // admin
+  if (m === 'POST' && pathname === '/api/reports') return createReport(currentUser(req), await readJson(req), res);
+  if (m === 'GET' && pathname === '/api/me/blocks') return myBlocks(currentUser(req), res);
+  let blockMatch = pathname.match(new RegExp(`^/api/users/${UUID_PATH}/block$`));
+  if (blockMatch && (m === 'POST' || m === 'DELETE')) return setBlock(currentUser(req), blockMatch[1], m === 'POST', res);
+  if (m === 'GET' && pathname === '/api/admin/reports') {
+    requireAdmin(req);
+    return adminListReports(query, res);
+  }
+  let reportMatch = pathname.match(new RegExp(`^/api/admin/reports/${UUID_PATH}$`));
+  if (reportMatch && m === 'POST') {
+    requireAdmin(req);
+    return adminActOnReport(reportMatch[1], await readJson(req), res);
+  }
+  let suspendMatch = pathname.match(new RegExp(`^/api/admin/users/${UUID_PATH}/suspension$`));
+  if (suspendMatch && m === 'POST') {
+    requireAdmin(req);
+    return adminSetSuspension(suspendMatch[1], await readJson(req), res);
+  }
   if (m === 'GET' && pathname === '/api/admin/stats') {
     requireAdmin(req);
     return adminStats(query, res);

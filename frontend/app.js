@@ -297,9 +297,63 @@ async function openListing(id){
     if(wa){c.href=wa;c.hidden=false}else c.hidden=true;
     $("#lmSave").hidden=!!l.isOwner;
     $("#lmOwner").hidden=!l.isOwner;
+    const canAct=!!user&&!l.isOwner;
+    $("#lmReport").hidden=!canAct;
+    $("#lmBlock").hidden=!canAct;
+    if(canAct)refreshBlockButton(l.seller.id);
     $("#lmSold").textContent=l.status==="sold"?"Mark available":"Mark sold";
     openModal(listingModal);
   }catch(err){notice(`Couldn't open listing: ${err.message}`)}
+}
+
+// ---------- reports and blocking ----------
+const REPORT_REASONS=[["scam","Scam or asking for money upfront"],["prohibited","Prohibited or illegal item"],["fake","Fake or misleading listing"],["harassment","Harassment or abuse"],["other","Something else"]];
+let blockedIds=new Set();
+async function refreshBlockButton(sellerId){
+  const b=$("#lmBlock");
+  try{
+    const d=await request("/api/me/blocks",{method:"GET",auth:true});
+    blockedIds=new Set(d.userIds||[]);
+  }catch{blockedIds=new Set()}
+  const isBlocked=blockedIds.has(sellerId);
+  b.textContent=isBlocked?"Unblock seller":"Block seller";
+  b.dataset.sellerId=sellerId;
+  b.dataset.blocked=String(isBlocked);
+}
+$("#lmBlock").addEventListener("click",async()=>{
+  const b=$("#lmBlock");const id=b.dataset.sellerId;if(!id)return;
+  const block=b.dataset.blocked!=="true";
+  try{
+    await request(`/api/users/${id}/block`,{method:block?"POST":"DELETE",auth:true});
+    notice(block?"Seller blocked. You won't see their listings.":"Seller unblocked.");
+    if(block){closeModal(listingModal);loadListings()}else{refreshBlockButton(id)}
+  }catch(err){notice(err.message)}
+});
+$("#lmReport").addEventListener("click",()=>{if(detail)openReport({targetType:"listing",targetId:detail.id,title:detail.title})});
+function openReport(target){
+  if(!user){notice("Log in to report a listing.");return}
+  const select=el("select",{name:"reason"},...REPORT_REASONS.map(([v,t])=>el("option",{value:v,text:t})));
+  const details=el("textarea",{rows:"3",maxlength:"300",placeholder:"Optional: what happened?"});
+  const msg=el("p",{class:"report-msg",role:"status"});
+  const wrap=el("div",{class:"report-wrap"});
+  const close=()=>wrap.remove();
+  const send=async()=>{
+    msg.textContent="";
+    try{
+      await request("/api/reports",{body:{targetType:target.targetType,targetId:target.targetId,reason:select.value,details:details.value.trim()},auth:true});
+      close();notice("Thanks. We'll review your report.");
+    }catch(err){msg.textContent=err.message}
+  };
+  wrap.append(el("div",{class:"report-card",role:"dialog","aria-modal":"true","aria-label":"Report"},
+    el("h3",{text:`Report ${target.title}`}),
+    el("label",{},"Reason",select),
+    el("label",{},"Details",details),
+    msg,
+    el("div",{class:"report-actions"},
+      el("button",{class:"btn light",type:"button",text:"Cancel",onclick:close}),
+      el("button",{class:"btn dark",type:"button",text:"Send report",onclick:send}))));
+  wrap.addEventListener("click",(e)=>{if(e.target===wrap)close()});
+  document.body.append(wrap);
 }
 $("#lmSave").addEventListener("click",()=>{if(detail)toggleSave(detail)});
 $("#lmEdit").addEventListener("click",()=>{const l=detail;closeModal(listingModal);openSell(l)});

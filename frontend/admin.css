@@ -64,3 +64,6 @@
 .chart-card svg{width:100%;height:auto;display:block}
 .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:8px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+
+/* report rows: one line per detail */
+.mrow small{display:block;margin-top:3px}

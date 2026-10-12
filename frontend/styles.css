@@ -215,3 +215,12 @@ html[data-theme="dark"] .marker:after{background:#c2410c}
 @media (prefers-reduced-motion:reduce){.auth.open *,.auth.open *::before,.auth.open *::after{animation:none!important}.lamp-text{opacity:1}}
 /* listing safety notice */
 .lm-safety{margin:14px 0 0;padding:10px 12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);font-size:12px;line-height:1.6;color:var(--ink-2)}
+
+/* report dialog */
+.report-wrap{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px;background:rgba(12,10,9,.55)}
+.report-card{width:min(420px,100%);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 24px 60px #0004}
+.report-card h3{font:800 18px Manrope,sans-serif;margin:0 0 12px;letter-spacing:-.5px}
+.report-card label{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:12px}
+.report-card select,.report-card textarea{display:block;width:100%;margin-top:6px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px}
+.report-msg{color:#9c493e;font-size:12px;min-height:16px;margin:0 0 10px}
+.report-actions{display:flex;justify-content:flex-end;gap:10px}

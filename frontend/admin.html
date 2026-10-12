@@ -18,6 +18,7 @@
       <button type="button" data-tab="stats">Overview</button>
       <button type="button" data-tab="pending" class="active">Verification requests <span id="pendingCount"></span></button>
       <button type="button" data-tab="users">All users</button>
+      <button type="button" data-tab="reports">Reports</button>
       <button type="button" data-tab="listings">Listings</button><button type="button" data-tab="billboard">Billboard</button>
     </nav>
     <section id="tab-stats" hidden>
@@ -29,6 +30,7 @@
         <div class="legend"><span><i style="background:var(--brand)"></i>Students</span><span><i style="background:var(--ink)"></i>Shops</span></div></div>
     </section>
     <section id="tab-pending"></section>
+    <section id="tab-reports" hidden><div id="reportList"></div></section>
     <section id="tab-users" hidden>
       <div class="a-filters">
         <input id="userSearch" type="search" placeholder="Search name, email or school" aria-label="Search users">

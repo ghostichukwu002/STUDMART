@@ -126,7 +126,7 @@ let currentTab="pending";
 function showTab(name){
   currentTab=name;
   $$(".a-tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
-  ["stats","pending","users","listings","billboard"].forEach(t=>{$(`#tab-${t}`).hidden=t!==name});
+  ["stats","pending","users","listings","billboard","reports"].forEach(t=>{$(`#tab-${t}`).hidden=t!==name});
   refreshVisible();
 }
 function refreshVisible(){
@@ -134,6 +134,7 @@ function refreshVisible(){
   else if(currentTab==="users")loadUsers();
   else if(currentTab==="billboard")loadBillboard();
   else if(currentTab==="stats")loadStats();
+  else if(currentTab==="reports")loadReports();
   else loadListings();
 }
 
@@ -271,6 +272,42 @@ function drawDaily(s){
     ...gridlines(W,H,P,maxV,y),...bars,...dateLabels(s,W,H,P,null)));
 }
 $("#statsDays").addEventListener("change",e=>{statsDays=Number(e.target.value)||30;loadStats()});
+
+// ---------- reports queue ----------
+const REASON_TEXT={scam:"Scam or asking for money upfront",prohibited:"Prohibited or illegal item",fake:"Fake or misleading listing",harassment:"Harassment or abuse",other:"Something else"};
+async function loadReports(){
+  const box=$("#reportList");
+  box.replaceChildren(el("p",{class:"empty",text:"Loading…"}));
+  try{
+    const d=await api("/api/admin/reports?status=open");
+    if(!d.reports.length){box.replaceChildren(el("p",{class:"empty",text:"No open reports."}));return}
+    box.replaceChildren(...d.reports.map(reportRow));
+  }catch(err){box.replaceChildren(el("p",{class:"empty",text:`Couldn't load reports: ${err.message}`}))}
+}
+function reportRow(r){
+  const t=r.target;
+  const isListing=t.type==="listing";
+  let what;
+  if(t.gone) what=isListing?"Listing (already removed)":"Account (deleted)";
+  else if(isListing) what=`Listing: ${t.title} · ₦${Number(t.price).toLocaleString("en-NG")}${t.listingStatus==="sold"?" · sold":""}`;
+  else what=`Account: ${t.name} · ${t.email}${t.suspended?" · SUSPENDED":""}`;
+  const act=async(action,body={})=>{
+    try{await api(`/api/admin/reports/${r.id}`,{method:"POST",body:{action}});loadReports()}
+    catch(err){alert(err.message)}
+  };
+  const buttons=[el("button",{type:"button",text:"Dismiss",onclick:()=>act("dismiss")})];
+  if(!t.gone&&isListing)buttons.push(el("button",{type:"button",class:"danger",text:"Remove listing",onclick:()=>act("remove_listing")}));
+  if(!t.gone)buttons.push(el("button",{type:"button",class:"danger",text:isListing?"Suspend seller":"Suspend account",onclick:()=>act("suspend_user")}));
+  if(!t.gone&&!isListing&&t.suspended)buttons.push(el("button",{type:"button",text:"Restore account",onclick:async()=>{
+    try{await api(`/api/admin/users/${t.id}/suspension`,{method:"POST",body:{suspended:false}});loadReports()}catch(err){alert(err.message)}}}));
+  return el("div",{class:"mrow"},
+    el("div",{},
+      el("b",{text:`${REASON_TEXT[r.reason]||r.reason}`}),
+      el("small",{text:what}),
+      r.details?el("small",{text:`"${r.details}"`}):null,
+      el("small",{text:`Reported by ${r.reporter?`${r.reporter.name} (${r.reporter.email})`:"a deleted account"} · ${new Date(r.createdAt).toLocaleString("en-NG")}`})),
+    el("div",{class:"mrow-actions"},...buttons));
+}
 
 init();
 })();
