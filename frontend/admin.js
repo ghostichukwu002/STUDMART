@@ -38,7 +38,7 @@ function requestCard(u){
   const v=u.verification;
   return el("article",{class:"card-a"},
     el("div",{class:"ra-head"},
-      el("div",{},el("b",{text:u.name}),el("small",{text:`${u.email} · ${u.school||"no school given"}`})),
+      el("div",{},el("b",{text:u.name}),el("small",{text:`${u.email} · ${u.accountType==="shop"?"Shop: "+(u.name||"")+" (no school needed)":(u.school||"no school given")}`})),
       pill(v.status)),
     el("p",{class:"ra-note",text:v.note?`“${v.note}”`:"No note from the student."}),
     el("small",{class:"ra-meta",text:`Requested ${fmtDate(v.requestedAt)} · ${u.listingCount} listing(s)`}),

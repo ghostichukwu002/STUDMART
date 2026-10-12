@@ -42,7 +42,7 @@ function renderWho(){
   const initials=shop?(user.shop.name||"S")[0].toUpperCase():`${(user.firstName||"")[0]||""}${(user.lastName||"")[0]||""}`.toUpperCase()||"S";
   $("#whoCard").replaceChildren(
     el("div",{class:"acct-who"},el("div",{class:"acct-avatar"},user.avatarUrl?el("img",{src:StudmartMedia.imgSrc(user.avatarUrl),alt:""}):initials),
-      el("div",{},el("b",{},shop?user.shop.name:`${user.firstName} ${user.lastName}`,devBadge(user.developer)),
+      el("div",{},el("b",{},shop?user.shop.name:`${user.firstName} ${user.lastName}`,tick((user.verification||{}).status==="approved"),devBadge(user.developer)),
         el("small",{text:user.email}),el("br"),
         el("span",{class:"acct-tag",text:shop?"SHOP ACCOUNT":"PERSONAL ACCOUNT"}))),
     el("dl",{class:"acct-row"},
@@ -55,11 +55,11 @@ function renderWho(){
 // Verification is for personal (student) accounts only
 function renderVerify(){
   const card=$("#verifyCard");
-  if(user.accountType==="shop"){card.hidden=true;return}
+  const isShop=user.accountType==="shop";
   card.hidden=false;
   const status=(user.verification||{}).status||"none";
-  if(status==="approved"){card.replaceChildren(el("h2",{text:"Student verification"}),el("p",{class:"verify-state ok"},tick(true),"Your account is verified. Buyers see a blue tick on your listings."));return}
-  if(status==="pending"){card.replaceChildren(el("h2",{text:"Student verification"}),el("p",{class:"verify-state",text:"Your student verification is under review. We'll email you once it's decided."}));return}
+  if(status==="approved"){card.replaceChildren(el("h2",{text:"Verification"}),el("p",{class:"verify-state ok"},tick(true),isShop?"Your shop is verified. Buyers see a blue tick on your shop and listings.":"Your account is verified. Buyers see a blue tick on your listings."));return}
+  if(status==="pending"){card.replaceChildren(el("h2",{text:"Verification"}),el("p",{class:"verify-state",text:"Your verification is under review. We'll email you once it's decided."}));return}
   const vMsg=el("p",{class:"msg"});
   if(status==="rejected")vMsg.textContent="Your last request wasn't approved. You can send a new one with a clearer student ID link.";
   const url=el("input",{name:"studentIdUrl",type:"url",maxlength:"500",placeholder:"https://… link to a photo of your student ID"});
@@ -73,12 +73,12 @@ function renderVerify(){
       user=d.user;localStorage.setItem(USER_KEY,JSON.stringify(user));renderVerify();notice(d.message||"Verification request sent.");
     }catch(err){vMsg.textContent=err.message}
   }},
-    el("p",{class:"verify-state",text:"Get a blue tick by proving you're a student. Upload your student ID to a link you control (for example Google Drive) and paste it here. Only STUDMART admins see it."}),
-    el("label",{},"Student ID link",url),
+    el("p",{class:"verify-state",text:isShop?"Get a blue tick for your shop. Upload a photo of your shop registration or owner ID to a link you control (for example Google Drive) and paste it here. Only STUDMART admins see it.":"Get a blue tick by proving you're a student. Upload your student ID to a link you control (for example Google Drive) and paste it here. Only STUDMART admins see it."}),
+    el("label",{},isShop?"Registration or ID link":"Student ID link",url),
     el("label",{},"Note (optional)",note),
     el("button",{class:"btn dark",type:"submit"},el("span",{text:"Request verification"}),el("b",{text:"↗"})),
     vMsg);
-  card.replaceChildren(el("h2",{text:"Student verification"}),form);
+  card.replaceChildren(el("h2",{text:"Verification"}),form);
 }
 
 async function loadMyListings(){

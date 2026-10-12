@@ -619,6 +619,7 @@ function adminUser(u) {
     name: u.name,
     email: u.email,
     school: u.school || '',
+    accountType: u.accountType === 'shop' ? 'shop' : 'individual',
     developer: !!u.developer,
     createdAt: u.createdAt,
     listingCount: db.listings.filter((l) => l.sellerId === u.id).length,
