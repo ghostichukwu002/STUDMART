@@ -17,7 +17,7 @@
 #pl-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:10000;background:#ea580c;transform:scaleX(0);transform-origin:0 50%;opacity:0;pointer-events:none;transition:opacity .2s}
 #pl-bar.on{opacity:1;animation:pl-bar 1.1s ease-in-out infinite}
 @keyframes pl-bar{0%{transform:scaleX(0);transform-origin:0 50%}50%{transform:scaleX(.8);transform-origin:0 50%}51%{transform-origin:100% 50%}100%{transform:scaleX(0);transform-origin:100% 50%}}
-#pl-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(255,250,245,.9);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s}
+#pl-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s}
 #pl-overlay.on{opacity:1;pointer-events:auto}
 #pl-overlay img{width:64px;height:auto;animation:pl-pulse 1.1s ease-in-out infinite}
 @keyframes pl-pulse{0%,100%{transform:scale(.9) rotate(-5deg);opacity:.55}50%{transform:scale(1.06) rotate(3deg);opacity:1}}
