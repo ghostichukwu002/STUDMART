@@ -643,6 +643,59 @@ function adminListUsers(query, res) {
   send(res, 200, { users: users.slice(0, 300).map(adminUser) });
 }
 
+// Sign-ups per day (UTC) for the last `days` days, with running totals, plus headline counts
+function adminStats(query, res) {
+  const days = Math.min(365, Math.max(7, Number(query.get('days')) || 30));
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const startMs = today.getTime() - (days - 1) * 86400000;
+  const startKey = new Date(startMs).toISOString().slice(0, 10);
+  const series = [];
+  const byDay = new Map();
+  for (let i = 0; i < days; i++) {
+    const key = new Date(startMs + i * 86400000).toISOString().slice(0, 10);
+    const row = { date: key, users: 0, shops: 0 };
+    series.push(row);
+    byDay.set(key, row);
+  }
+  let usersBefore = 0;
+  let shopsBefore = 0;
+  for (const u of db.users) {
+    const isShop = u.accountType === 'shop';
+    const key = String(u.createdAt || '').slice(0, 10);
+    if (key < startKey) {
+      if (isShop) shopsBefore++; else usersBefore++;
+      continue;
+    }
+    const row = byDay.get(key);
+    if (!row) continue;
+    if (isShop) row.shops++; else row.users++;
+  }
+  let runUsers = usersBefore;
+  let runShops = shopsBefore;
+  for (const row of series) {
+    runUsers += row.users;
+    runShops += row.shops;
+    row.totalUsers = runUsers;
+    row.totalShops = runShops;
+  }
+  const shops = db.users.filter((u) => u.accountType === 'shop');
+  const students = db.users.filter((u) => u.accountType !== 'shop');
+  const approved = (u) => (u.verification || {}).status === 'approved';
+  send(res, 200, {
+    days,
+    totals: {
+      users: students.length,
+      shops: shops.length,
+      verifiedStudents: students.filter(approved).length,
+      verifiedShops: shops.filter(approved).length,
+      developers: db.users.filter((u) => u.developer).length,
+      activeListings: db.listings.filter((l) => l.status === 'active').length,
+    },
+    series,
+  });
+}
+
 async function adminSetDeveloper(userId, body, res) {
   const u = db.users.find((x) => x.id === userId);
   if (!u) throw new HttpError(404, 'User not found.');
@@ -837,6 +890,10 @@ async function dispatch(req, res, url) {
   }
 
   // admin
+  if (m === 'GET' && pathname === '/api/admin/stats') {
+    requireAdmin(req);
+    return adminStats(query, res);
+  }
   if (m === 'GET' && pathname === '/api/admin/users') {
     requireAdmin(req);
     return adminListUsers(query, res);

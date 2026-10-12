@@ -15,10 +15,19 @@
   <div id="app" hidden>
     <h1>Admin dashboard</h1>
     <nav class="a-tabs" aria-label="Admin sections">
+      <button type="button" data-tab="stats">Overview</button>
       <button type="button" data-tab="pending" class="active">Verification requests <span id="pendingCount"></span></button>
       <button type="button" data-tab="users">All users</button>
       <button type="button" data-tab="listings">Listings</button><button type="button" data-tab="billboard">Billboard</button>
     </nav>
+    <section id="tab-stats" hidden>
+      <div class="stats-bar"><label>Show last <select id="statsDays"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label></div>
+      <div class="stats-tiles" id="statsTiles"></div>
+      <div class="chart-card"><h3>Total students and shops over time</h3><div id="chartTotal"></div>
+        <div class="legend"><span><i style="background:var(--brand)"></i>Students</span><span><i style="background:var(--ink)"></i>Shops</span></div></div>
+      <div class="chart-card"><h3>New sign-ups per day</h3><div id="chartDaily"></div>
+        <div class="legend"><span><i style="background:var(--brand)"></i>Students</span><span><i style="background:var(--ink)"></i>Shops</span></div></div>
+    </section>
     <section id="tab-pending"></section>
     <section id="tab-users" hidden>
       <div class="a-filters">

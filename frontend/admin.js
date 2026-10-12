@@ -126,13 +126,14 @@ let currentTab="pending";
 function showTab(name){
   currentTab=name;
   $$(".a-tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
-  ["pending","users","listings","billboard"].forEach(t=>{$(`#tab-${t}`).hidden=t!==name});
+  ["stats","pending","users","listings","billboard"].forEach(t=>{$(`#tab-${t}`).hidden=t!==name});
   refreshVisible();
 }
 function refreshVisible(){
   if(currentTab==="pending")loadPending();
   else if(currentTab==="users")loadUsers();
   else if(currentTab==="billboard")loadBillboard();
+  else if(currentTab==="stats")loadStats();
   else loadListings();
 }
 
@@ -216,5 +217,60 @@ $("#userSearch").addEventListener("input",()=>{clearTimeout(userTimer);userTimer
 $("#userStatus").addEventListener("change",loadUsers);
 $("#bbAdd").addEventListener("click",()=>{if(slides.length>=MAX_SLIDES){notice(`A billboard can have up to ${MAX_SLIDES} slides.`);return}slides.push(blankSlide());renderEditor()});
 $("#bbSave").addEventListener("click",saveBillboard);
+// ---------- overview: sign-up charts ----------
+const SVGNS="http://www.w3.org/2000/svg";
+let statsDays=30;
+function svgEl(tag,attrs={},...kids){const n=document.createElementNS(SVGNS,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));n.append(...kids);return n}
+function shortDate(key){return new Date(key+"T00:00:00Z").toLocaleDateString("en-NG",{day:"numeric",month:"short",timeZone:"UTC"})}
+function gridlines(W,H,P,maxV,y){
+  return [0,Math.ceil(maxV/2),maxV].map(v=>svgEl("g",{},
+    svgEl("line",{x1:P,x2:W-P,y1:y(v),y2:y(v),style:"stroke:var(--line)","stroke-width":"1"}),
+    svgEl("text",{x:P-8,y:y(v)+4,"text-anchor":"end","font-size":"11",style:"fill:var(--muted)"},String(v))));
+}
+function dateLabels(s,W,H,P,x){
+  const first=s[0],last=s[s.length-1];
+  return [svgEl("text",{x:P,y:H-8,"font-size":"11",style:"fill:var(--muted)"},shortDate(first.date)),
+    svgEl("text",{x:W-P,y:H-8,"text-anchor":"end","font-size":"11",style:"fill:var(--muted)"},shortDate(last.date))];
+}
+async function loadStats(){
+  const tiles=$("#statsTiles");
+  try{
+    const d=await api(`/api/admin/stats?days=${statsDays}`);
+    const t=d.totals;
+    tiles.replaceChildren(...[["Students",t.users],["Shops",t.shops],["Verified students",t.verifiedStudents],["Verified shops",t.verifiedShops],["Developers",t.developers],["Active listings",t.activeListings]]
+      .map(([l,v])=>el("div",{class:"stat"},el("b",{text:String(v)}),el("small",{text:l}))));
+    drawTotals(d.series);
+    drawDaily(d.series);
+  }catch(err){tiles.replaceChildren(el("p",{class:"empty",text:`Couldn't load stats: ${err.message}`}))}
+}
+function drawTotals(s){
+  const W=640,H=230,P=36;
+  const maxV=Math.max(1,...s.map(r=>Math.max(r.totalUsers,r.totalShops)));
+  const x=i=>P+i*(W-2*P)/Math.max(1,s.length-1), y=v=>H-P-(v/maxV)*(H-2*P);
+  const path=key=>s.map((r,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(r[key]).toFixed(1)}`).join(" ");
+  $("#chartTotal").replaceChildren(svgEl("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"Total students and shops over time"},
+    ...gridlines(W,H,P,maxV,y),
+    svgEl("path",{d:path("totalUsers"),fill:"none",style:"stroke:var(--brand)","stroke-width":"2.5","stroke-linejoin":"round"}),
+    svgEl("path",{d:path("totalShops"),fill:"none",style:"stroke:var(--ink)","stroke-width":"2.5","stroke-linejoin":"round"}),
+    ...dateLabels(s,W,H,P,x)));
+}
+function drawDaily(s){
+  const W=640,H=200,P=36;
+  const maxV=Math.max(1,...s.map(r=>r.users+r.shops));
+  const slot=(W-2*P)/s.length, bw=Math.max(2,slot*0.7);
+  const y=v=>H-P-(v/maxV)*(H-2*P);
+  const bars=[];
+  s.forEach((r,i)=>{
+    const x=P+i*slot+(slot-bw)/2;
+    const tip=`${shortDate(r.date)}: ${r.users} student${r.users===1?"":"s"}, ${r.shops} shop${r.shops===1?"":"s"}`;
+    if(r.users)bars.push(svgEl("rect",{x,y:y(r.users),width:bw,height:(H-P)-y(r.users),rx:"2",style:"fill:var(--brand)"},svgEl("title",{},tip)));
+    if(r.shops)bars.push(svgEl("rect",{x,y:y(r.users+r.shops),width:bw,height:(H-P)-y(r.shops),rx:"2",style:"fill:var(--ink)"},svgEl("title",{},tip)));
+    if(!r.users&&!r.shops)bars.push(svgEl("title",{},tip));
+  });
+  $("#chartDaily").replaceChildren(svgEl("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":"New sign-ups per day"},
+    ...gridlines(W,H,P,maxV,y),...bars,...dateLabels(s,W,H,P,null)));
+}
+$("#statsDays").addEventListener("change",e=>{statsDays=Number(e.target.value)||30;loadStats()});
+
 init();
 })();
