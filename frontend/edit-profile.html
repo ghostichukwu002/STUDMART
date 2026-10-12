@@ -17,6 +17,19 @@
     <h1 id="editTitle">Edit profile<span>.</span></h1>
     <p class="acct-sub" id="editSub"></p>
 
+    <section class="acct-card">
+      <h2>Profile photo</h2>
+      <div class="acct-photo">
+        <div class="acct-avatar" id="avatarPreview"></div>
+        <div>
+          <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp">
+          <p class="acct-sub" style="margin:8px 0 0">JPEG, PNG or WebP, up to 3 MB.</p>
+          <button class="btn light" id="removePhoto" type="button" hidden>Remove photo</button>
+        </div>
+      </div>
+      <p class="msg" id="photoMsg" role="status"></p>
+    </section>
+
     <form class="acct-card" id="profileForm" novalidate>
       <h2>Your details</h2>
       <div class="row2">
@@ -47,5 +60,5 @@
   </section>
 </main>
 <div class="toast" id="toast" role="status"></div>
-<script src="./edit-profile.js" defer></script>
+<script src="./media.js" defer></script><script src="./edit-profile.js" defer></script>
 </body></html>

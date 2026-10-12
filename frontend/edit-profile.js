@@ -25,7 +25,37 @@ function gate(title,text){
   }
   g.hidden=false;
 }
+function renderAvatar(){
+  const box=$("#avatarPreview");
+  const initials=user.accountType==="shop"&&user.shop?(user.shop.name||"S")[0].toUpperCase():`${(user.firstName||"")[0]||""}${(user.lastName||"")[0]||""}`.toUpperCase()||"S";
+  box.replaceChildren();
+  if(user.avatarUrl){const img=document.createElement("img");img.src=StudmartMedia.imgSrc(user.avatarUrl);img.alt="";box.append(img)}
+  else box.textContent=initials;
+  $("#removePhoto").hidden=!user.avatarUrl;
+}
+async function savePhoto(avatarUrl,okText){
+  const msg=$("#photoMsg");msg.style.color=RED;msg.textContent="";
+  try{
+    // The profile endpoint expects the name fields too, so send the current values with the new photo
+    const body={firstName:user.firstName,lastName:user.lastName,school:user.school||"",bio:user.bio||"",avatarUrl};
+    const d=await api("/api/auth/profile",{method:"PATCH",body});
+    user=d.user;localStorage.setItem(USER_KEY,JSON.stringify(user));
+    renderAvatar();msg.style.color=GREEN;msg.textContent=okText;notice(okText);
+  }catch(err){msg.textContent=err.message}
+}
+$("#photoInput").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  const msg=$("#photoMsg");msg.style.color=RED;msg.textContent="Uploading…";
+  try{
+    const url=await StudmartMedia.uploadImage(file,token);
+    await savePhoto(url,"Profile photo updated.");
+  }catch(err){msg.textContent=err.message}
+  finally{e.target.value=""}
+});
+$("#removePhoto").addEventListener("click",()=>savePhoto("","Profile photo removed."));
+
 function fill(){
+  renderAvatar();
   const f=profileForm.elements, shop=user.accountType==="shop"&&user.shop;
   f.firstName.value=user.firstName||"";f.lastName.value=user.lastName||"";
   $("#personalFields").hidden=!!shop;$("#shopFields").hidden=!shop;

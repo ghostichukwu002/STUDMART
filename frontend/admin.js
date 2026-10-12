@@ -66,7 +66,7 @@ function userRow(u){
   if(s==="pending")actions.push(el("button",{type:"button",text:"Reject",onclick:()=>decide(u,"reject")}));
   return el("div",{class:"mrow"},
     el("div",{},el("b",{text:u.name}),el("small",{text:`${u.email} · ${u.school||"—"} · ${u.listingCount} listing(s) · joined ${fmtDate(u.createdAt)}`})),
-    el("div",{class:"mrow-actions"},pill(s),...actions));
+    el("div",{class:"mrow-actions"},pill(s),u.developer?el("span",{class:"pill pill-approved",text:"Developer"}):null,...actions,el("button",{type:"button",text:u.developer?"Remove developer badge":"Make developer",onclick:()=>setDeveloper(u,u.developer?"revoke":"grant")})));
 }
 async function loadUsers(){
   const box=$("#userList");
@@ -81,6 +81,14 @@ async function loadUsers(){
   }catch(err){box.replaceChildren(el("p",{class:"empty-a",text:`Couldn't load users: ${err.message}`}))}
 }
 
+// Gold developer badge on or off
+async function setDeveloper(u,action){
+  if(action==="revoke"&&!confirm(`Remove the developer badge from ${u.name}?`))return;
+  try{
+    const d=await api(`/api/admin/users/${u.id}/developer`,{method:"POST",body:{action}});
+    notice(d.message);refreshVisible();
+  }catch(err){notice(err.message)}
+}
 // Approve / reject / revoke, then refresh whichever list is showing
 async function decide(u,action){
   if((action==="reject"||action==="revoke")&&!confirm(`${action==="reject"?"Reject":"Revoke"} verification for ${u.name}?`))return;

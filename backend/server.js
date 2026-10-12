@@ -133,6 +133,8 @@ function publicUser(u) {
     updatedAt: u.updatedAt || u.createdAt,
     accountType: u.accountType === 'shop' ? 'shop' : 'individual',
     shop: u.accountType === 'shop' ? { ...(u.shop || {}) } : null,
+    avatarUrl: u.avatarUrl || '',
+    developer: !!u.developer,
     isAdmin: ADMIN_EMAILS.includes(u.email),
     verification: {
       status: (u.verification || {}).status || 'none',
@@ -360,8 +362,11 @@ function updateProfile(user, body, res) {
   if (school.length > 80 || (!school && user.accountType !== 'shop')) throw bad('School must be between 1 and 80 characters.');
   if (bio.length > 300) throw bad('Bio must be 300 characters or fewer.');
   const shopPatch = user.accountType === 'shop' ? { shop: readShop(body, user.shop || {}) } : {};
+  const avatarUrl = Object.prototype.hasOwnProperty.call(body, 'avatarUrl') ? clean(body.avatarUrl) : null;
+  if (avatarUrl && !(avatarUrl.startsWith('/uploads/') && isAllowedImage(avatarUrl))) throw bad('Profile photo must be an uploaded image.');
+  const avatarPatch = avatarUrl === null ? {} : { avatarUrl };
 
-  Object.assign(user, { firstName, lastName, name: `${firstName} ${lastName}`, school, bio, updatedAt: now() }, shopPatch);
+  Object.assign(user, { firstName, lastName, name: `${firstName} ${lastName}`, school, bio, updatedAt: now() }, shopPatch, avatarPatch);
   saveDb();
   send(res, 200, { message: 'Profile saved.', user: publicUser(user) });
 }
@@ -409,6 +414,8 @@ function publicListing(l, viewerId) {
           school: seller.school,
           type: seller.accountType === 'shop' ? 'shop' : 'individual',
           verified: (seller.verification || {}).status === 'approved',
+          developer: !!seller.developer,
+          avatarUrl: seller.avatarUrl || '',
         }
       : { name: 'Student seller', school: '' },
     isOwner: !!viewerId && viewerId === l.sellerId,
@@ -612,6 +619,7 @@ function adminUser(u) {
     name: u.name,
     email: u.email,
     school: u.school || '',
+    developer: !!u.developer,
     createdAt: u.createdAt,
     listingCount: db.listings.filter((l) => l.sellerId === u.id).length,
     verification: {
@@ -632,6 +640,19 @@ function adminListUsers(query, res) {
   if (status) users = users.filter((u) => ((u.verification || {}).status || 'none') === status);
   users = [...users].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   send(res, 200, { users: users.slice(0, 300).map(adminUser) });
+}
+
+async function adminSetDeveloper(userId, body, res) {
+  const u = db.users.find((x) => x.id === userId);
+  if (!u) throw new HttpError(404, 'User not found.');
+  if (body.action !== 'grant' && body.action !== 'revoke') throw bad('Choose grant or revoke.');
+  u.developer = body.action === 'grant';
+  u.updatedAt = now();
+  saveDb();
+  send(res, 200, {
+    message: u.developer ? `${u.name} now has the developer badge.` : `Developer badge removed from ${u.name}.`,
+    user: adminUser(u),
+  });
 }
 
 async function adminSetVerification(admin, userId, body, res) {
@@ -832,6 +853,13 @@ async function dispatch(req, res, url) {
   if (match && m === 'DELETE') {
     requireAdmin(req);
     return adminDeleteListing(match[1], res);
+  }
+
+  // developer badge (admins only)
+  const devMatch = pathname.match(new RegExp(`^/api/admin/users/${UUID_PATH}/developer$`));
+  if (m === 'POST' && devMatch) {
+    requireAdmin(req);
+    return adminSetDeveloper(devMatch[1], await readJson(req), res);
   }
 
   // uploads and billboard

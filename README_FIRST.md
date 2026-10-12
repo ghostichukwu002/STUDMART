@@ -12,6 +12,8 @@
 ## Features
 - Personal accounts: sign up, log in, stay logged in across reloads, log out
 - Shop accounts: a separate kind of account with a shop name, address (any town or area, not tied to a school), WhatsApp number and description. Shop sign-up does not ask for a school. Sign up from the "Shop account" tab or "Open a shop account" on the home page.
+- Profile photos: upload a photo on the Edit profile page (JPEG, PNG or WebP, up to 3 MB). Shown on your profile.
+- Developer badge: a gold tick inside a hexagon, granted by an admin in the Users tab ("Make developer"). It sits next to the blue student tick on listings and profiles.
 - Profile page (`profile.html`): see your details, verification status and your listings, with Edit, Mark sold and Delete.
 - Edit profile page (`edit-profile.html`): change your name, school and bio (personal accounts), or your shop details (shop accounts), and change your password.
 - Posting: "Sell an item" opens the post page. Posting only needs you to be logged in.
@@ -58,7 +60,7 @@ Auth
 | POST | `/api/auth/forgot-password` | `email`. Same reply whether or not the account exists. |
 | POST | `/api/auth/reset-password` | `token, password` |
 | GET | `/api/auth/me` | Bearer token. Includes `accountType`, `shop`, `isAdmin`, `verification`. |
-| PATCH | `/api/auth/profile` | `firstName, lastName, school, bio`. Shop accounts also take `shopName, shopAddress, shopPhone, shopDescription`. Bearer token. |
+| PATCH | `/api/auth/profile` | `firstName, lastName, school, bio`. Shop accounts also take `shopName, shopAddress, shopPhone, shopDescription`. Optional `avatarUrl` (an uploaded `/uploads/…` photo; empty string removes it). Bearer token. |
 | POST | `/api/auth/change-password` | `currentPassword, newPassword`. Bearer token. |
 
 Verification
@@ -99,6 +101,7 @@ Admin (admins only, from `ADMIN_EMAILS`)
 | POST | `/api/admin/users/:id/verification` | `action`: `approve`, `reject`, or `revoke`. Emails the student on approve or reject. |
 | GET | `/api/admin/listings` | All listings |
 | DELETE | `/api/admin/listings/:id` | Removes any listing |
+| POST | `/api/admin/users/:id/developer` | `action`: `grant` or `revoke` the gold developer badge |
 
 Condition values: New, Like new, Good, Fair. Price is whole naira, 0 to 10,000,000. Photo links must start with `https://`.
 

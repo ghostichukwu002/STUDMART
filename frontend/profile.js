@@ -20,6 +20,7 @@ function el(tag,props={},...kids){
 function notice(t){const x=$("#toast");x.textContent=t;x.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>x.classList.remove("show"),3000)}
 const money=n=>"₦"+Number(n).toLocaleString("en-NG");
 const tick=v=>v?el("span",{class:"tick",title:"Verified student","aria-label":"Verified student",text:"✓"}):null;
+const devBadge=v=>v?el("span",{class:"dev-badge",title:"STUDMART developer","aria-label":"STUDMART developer",text:"✓"}):null;
 
 async function api(path,{method="GET",body}={}){
   let r;
@@ -40,8 +41,8 @@ function renderWho(){
   const shop=user.accountType==="shop"&&user.shop;
   const initials=shop?(user.shop.name||"S")[0].toUpperCase():`${(user.firstName||"")[0]||""}${(user.lastName||"")[0]||""}`.toUpperCase()||"S";
   $("#whoCard").replaceChildren(
-    el("div",{class:"acct-who"},el("div",{class:"acct-avatar",text:initials}),
-      el("div",{},el("b",{},shop?user.shop.name:`${user.firstName} ${user.lastName}`,shop?tick(false):null),
+    el("div",{class:"acct-who"},el("div",{class:"acct-avatar"},user.avatarUrl?el("img",{src:StudmartMedia.imgSrc(user.avatarUrl),alt:""}):initials),
+      el("div",{},el("b",{},shop?user.shop.name:`${user.firstName} ${user.lastName}`,devBadge(user.developer)),
         el("small",{text:user.email}),el("br"),
         el("span",{class:"acct-tag",text:shop?"SHOP ACCOUNT":"PERSONAL ACCOUNT"}))),
     el("dl",{class:"acct-row"},

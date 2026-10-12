@@ -41,6 +41,8 @@ function notice(t){toast.textContent=t;toast.classList.add("show");clearTimeout(
 const money=n=>"₦"+Number(n).toLocaleString("en-NG");
 // Blue tick for verified students (approved by a STUDMART admin)
 function tick(verified){return verified?el("span",{class:"tick",title:"Verified student","aria-label":"Verified student",text:"✓"}):null}
+// Gold tick in a hexagon: granted by STUDMART admins to developer accounts
+function devBadge(v){return v?el("span",{class:"dev-badge",title:"STUDMART developer","aria-label":"STUDMART developer",text:"✓"}):null}
 // Build DOM nodes instead of HTML strings, so user-written text can never inject markup
 function el(tag,props={},...kids){
   const n=document.createElement(tag);
@@ -218,7 +220,7 @@ function listingCard(l){
       onkeydown:e=>{if(e.key==="Enter")openListing(l.id)}},
     img,
     el("div",{class:"listing-body"},
-      el("small",{},`${l.category} · ${l.seller.name}`,tick(l.seller.verified),l.seller.type==="shop"?el("span",{class:"shop-badge",text:"SHOP"}):null),
+      el("small",{},`${l.category} · ${l.seller.name}`,tick(l.seller.verified),l.seller.type==="shop"?el("span",{class:"shop-badge",text:"SHOP"}):null,devBadge(l.seller.developer)),
       el("h3",{text:l.title}),
       el("div",{},el("b",{text:money(l.price)}),el("span",{text:`● ${l.pickup}`}))));
 }
@@ -288,7 +290,7 @@ async function openListing(id){
     $("#lmPrice").textContent=money(l.price);
     $("#lmFacts").replaceChildren(el("span",{text:`📍 ${l.pickup}`}),el("span",{text:`Condition: ${l.condition}`}));
     $("#lmDesc").textContent=l.description;
-    $("#lmSeller").replaceChildren(`Sold by ${l.seller.name}${l.seller.school?` · ${l.seller.school}`:""}`,tick(l.seller.verified),l.seller.type==="shop"?el("span",{class:"shop-badge",text:"SHOP"}):null);
+    $("#lmSeller").replaceChildren(`Sold by ${l.seller.name}${l.seller.school?` · ${l.seller.school}`:""}`,tick(l.seller.verified),devBadge(l.seller.developer),l.seller.type==="shop"?el("span",{class:"shop-badge",text:"SHOP"}):null);
     fillDetailSave();
     const wa=contactLink(l.contact);
     const c=$("#lmContact");
