@@ -834,6 +834,43 @@ function adminSetBillboard(body, res) {
   send(res, 200, { message: 'Billboard saved.', slides: db.billboard });
 }
 
+// ---------- rate limits (in memory, per client address; counters reset when the server restarts) ----------
+const RATE_RULES = [
+  { name: 'login', limit: 10, windowMs: 15 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/auth/login' },
+  { name: 'register', limit: 5, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/auth/register' },
+  { name: 'reset', limit: 5, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && (p === '/api/auth/forgot-password' || p === '/api/auth/reset-password') },
+  { name: 'upload', limit: 40, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/uploads' },
+  { name: 'post', limit: 30, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/listings' },
+  { name: 'verify', limit: 5, windowMs: 24 * 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/verification' },
+];
+const rateHits = new Map();
+// Behind Render's proxy the real client is the last address in X-Forwarded-For (the first can be faked).
+function clientAddress(req) {
+  const parts = String(req.headers['x-forwarded-for'] || '').split(',').map((v) => v.trim()).filter(Boolean);
+  return parts[parts.length - 1] || req.socket.remoteAddress || 'unknown';
+}
+function enforceRateLimit(req, m, pathname) {
+  const rule = RATE_RULES.find((r) => r.test(m, pathname));
+  if (!rule) return;
+  const key = `${rule.name}:${clientAddress(req)}`;
+  const t = Date.now();
+  let hit = rateHits.get(key);
+  if (!hit || hit.resetAt <= t) {
+    hit = { count: 0, resetAt: t + rule.windowMs };
+    rateHits.set(key, hit);
+  }
+  hit.count++;
+  if (hit.count > rule.limit) {
+    const mins = Math.max(1, Math.ceil((hit.resetAt - t) / 60000));
+    throw new HttpError(429, `Too many attempts. Please try again in ${mins} minute${mins === 1 ? '' : 's'}.`);
+  }
+}
+// drop expired counters so memory stays small
+setInterval(() => {
+  const t = Date.now();
+  for (const [key, hit] of rateHits) if (hit.resetAt <= t) rateHits.delete(key);
+}, 10 * 60 * 1000).unref();
+
 async function dispatch(req, res, url) {
   const { pathname, searchParams: query } = url;
   const m = req.method;
@@ -841,6 +878,8 @@ async function dispatch(req, res, url) {
   if (m === 'GET' && (pathname === '/' || pathname === '/health')) {
     return send(res, 200, { service: 'studmart-api', status: 'ok' });
   }
+
+  enforceRateLimit(req, m, pathname);
 
   // auth
   if (m === 'GET' && pathname === '/api/auth/me') return send(res, 200, { user: publicUser(currentUser(req)) });
