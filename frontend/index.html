@@ -18,9 +18,9 @@
 <section class="billboard wrap" id="billboard" aria-roledescription="carousel" aria-label="Highlights">
   <div class="bb-track" id="bbTrack">
     <article class="bb-slide is-active" aria-roledescription="slide"><div class="bb-copy"><small>SHOPS ON CAMPUS</small><h2>Your favourite shop is <em>on campus.</em></h2><p>Browse shops with their own listings, address and WhatsApp.</p><a class="btn cream" href="./shops.html">Browse shops ↗</a></div><div class="bb-art a"><span>✳</span></div></article>
-    <article class="bb-slide" aria-roledescription="slide"><div class="bb-copy"><small>SELL IN A MINUTE</small><h2>Got something <em>to sell?</em></h2><p>Snap it, price it, post it. Students see your listing right away.</p><a class="btn cream" href="./post.html">Post an item ↗</a></div><div class="bb-art b"><span>＋</span></div></article>
-    <article class="bb-slide" aria-roledescription="slide"><div class="bb-copy"><small>BOOKS &amp; NOTES</small><h2>Books from <em>₦2,500.</em></h2><p>Last semester’s textbooks and handy notes, sold by students who just used them.</p><a class="btn cream" href="#market">Find books ↗</a></div><div class="bb-art c"><span>▤</span></div></article>
-    <article class="bb-slide" aria-roledescription="slide"><div class="bb-copy"><small>LOOK FOR THE BLUE TICK</small><h2>Trust the <em>verified</em> ones.</h2><p>Sellers with a blue tick have shared a student ID with our team.</p><a class="btn cream" href="#how">How it works ↗</a></div><div class="bb-art d"><span>✓</span></div></article>
+    <article class="bb-slide theme-deep" aria-roledescription="slide"><div class="bb-copy"><small>SELL IN A MINUTE</small><h2>Got something <em>to sell?</em></h2><p>Snap it, price it, post it. Students see your listing right away.</p><a class="btn cream" href="./post.html">Post an item ↗</a></div><div class="bb-art b"><span>＋</span></div></article>
+    <article class="bb-slide theme-amber" aria-roledescription="slide"><div class="bb-copy"><small>BOOKS &amp; NOTES</small><h2>Books from <em>₦2,500.</em></h2><p>Last semester’s textbooks and handy notes, sold by students who just used them.</p><a class="btn cream" href="#market">Find books ↗</a></div><div class="bb-art c"><span>▤</span></div></article>
+    <article class="bb-slide theme-crimson" aria-roledescription="slide"><div class="bb-copy"><small>LOOK FOR THE BLUE TICK</small><h2>Trust the <em>verified</em> ones.</h2><p>Sellers with a blue tick have shared a student ID with our team.</p><a class="btn cream" href="#how">How it works ↗</a></div><div class="bb-art d"><span>✓</span></div></article>
   </div>
   <div class="bb-controls">
     <button type="button" class="bb-arrow" id="bbPrev" aria-label="Previous slide">‹</button>
@@ -73,7 +73,7 @@
 <div class="row"><label>Category<select name="category"><option>Electronics</option><option>Books</option><option>Fashion</option><option>Hostel</option></select></label><label>Condition<select name="condition"><option>New</option><option>Like new</option><option selected>Good</option><option>Fair</option></select></label></div>
 <div class="row"><label>Price (₦)<input name="price" type="number" min="0" max="10000000" step="1" inputmode="numeric" placeholder="e.g. 8500"></label><label>Pickup location<input name="pickup" maxlength="80" placeholder="e.g. Main gate"></label></div>
 <label>WhatsApp / phone (optional)<input name="contact" maxlength="40" placeholder="e.g. 0803 000 0000"></label>
-<label>Photo link (optional, https)<input name="imageUrl" maxlength="500" placeholder="https://…"></label>
+<input type="hidden" name="imageUrl"><label>Photo (optional, JPEG, PNG or WebP, up to 3 MB)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label><div class="photo-preview"><img id="sellPhotoPreview" alt="" hidden></div>
 <label>Description<textarea name="description" maxlength="1000" placeholder="Condition, what's included, why you're selling…"></textarea></label>
 <button class="btn dark submit" id="sellSubmit" type="submit"><span>Post listing</span><b>↗</b></button>
 <div class="message" id="sellMsg" role="status"></div>
@@ -87,4 +87,4 @@
 <div class="message" id="resetMsg" role="status"></div>
 </form></div></section></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="./app.js" defer></script><script src="./billboard.js" defer></script></body></html>
+<script src="./media.js" defer></script><script src="./app.js" defer></script><script src="./billboard.js" defer></script></body></html>

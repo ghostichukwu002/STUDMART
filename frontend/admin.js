@@ -118,13 +118,69 @@ let currentTab="pending";
 function showTab(name){
   currentTab=name;
   $$(".a-tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
-  ["pending","users","listings"].forEach(t=>{$(`#tab-${t}`).hidden=t!==name});
+  ["pending","users","listings","billboard"].forEach(t=>{$(`#tab-${t}`).hidden=t!==name});
   refreshVisible();
 }
 function refreshVisible(){
   if(currentTab==="pending")loadPending();
   else if(currentTab==="users")loadUsers();
+  else if(currentTab==="billboard")loadBillboard();
   else loadListings();
+}
+
+// ---------- billboard editor ----------
+const media=window.StudmartMedia;
+const MAX_SLIDES=8;
+const THEMES=[["orange","Orange"],["deep","Deep orange"],["amber","Amber (dark text)"],["crimson","Crimson"]];
+let slides=[];
+function blankSlide(){return {kicker:"",title:"",body:"",buttonText:"Learn more",buttonLink:"./shops.html",imageUrl:"",theme:"orange"}}
+function moveSlide(i,d){const j=i+d;if(j<0||j>=slides.length)return;[slides[i],slides[j]]=[slides[j],slides[i]];renderEditor()}
+function slideCard(s,i){
+  const field=(label,node)=>el("label",{class:"bb-field"},label,node);
+  const photoInput=el("input",{type:"file",accept:"image/jpeg,image/png,image/webp",onchange:async e=>{
+    const file=e.target.files[0];if(!file)return;
+    notice("Uploading photo…");
+    try{s.imageUrl=await media.uploadImage(file,token);renderEditor();notice("Photo uploaded. Save to publish.")}
+    catch(err){notice(err.message);e.target.value=""}
+  }});
+  return el("article",{class:"card-a"},
+    el("div",{class:"bb-head"},el("b",{text:`Slide ${i+1}`}),el("div",{class:"mrow-actions"},
+      el("button",{type:"button",text:"Up",disabled:i===0,onclick:()=>moveSlide(i,-1)}),
+      el("button",{type:"button",text:"Down",disabled:i===slides.length-1,onclick:()=>moveSlide(i,1)}),
+      el("button",{type:"button",class:"danger",text:"Remove",onclick:()=>{slides.splice(i,1);renderEditor()}}))),
+    el("div",{class:"bb-grid"},
+      field("Small label",el("input",{maxlength:"40",value:s.kicker,oninput:e=>{s.kicker=e.target.value}})),
+      field("Title",el("input",{maxlength:"80",value:s.title,oninput:e=>{s.title=e.target.value}})),
+      field("Text",el("textarea",{maxlength:"220",oninput:e=>{s.body=e.target.value}},s.body)),
+      field("Button text",el("input",{maxlength:"30",value:s.buttonText,oninput:e=>{s.buttonText=e.target.value}})),
+      field("Button link (e.g. ./shops.html, #market, or https://…)",el("input",{maxlength:"200",value:s.buttonLink,oninput:e=>{s.buttonLink=e.target.value}})),
+      field("Colour",el("select",{onchange:e=>{s.theme=e.target.value}},...THEMES.map(([v,t])=>el("option",{value:v,selected:v===s.theme,text:t}))))),
+    el("div",{class:"bb-photo"},
+      s.imageUrl?el("img",{src:media.imgSrc(s.imageUrl),alt:"",class:"bb-thumb"}):el("span",{class:"bb-noimg",text:"No photo"}),
+      photoInput,
+      s.imageUrl?el("button",{type:"button",text:"Remove photo",onclick:()=>{s.imageUrl="";renderEditor()}}):null));
+}
+function renderEditor(){
+  $("#bbEditor").replaceChildren(...(slides.length
+    ?slides.map(slideCard)
+    :[el("p",{class:"empty-a",text:"No slides saved. The home page is showing its built-in slides."})]));
+}
+async function loadBillboard(){
+  try{
+    const r=await fetch(API_BASE+"/api/billboard",{headers:{Accept:"application/json"}});
+    const d=await r.json();
+    slides=d.slides||[];
+  }catch{notice("Couldn't load the billboard. Check your connection.")}
+  renderEditor();
+}
+async function saveBillboard(){
+  const btn=$("#bbSave");btn.disabled=true;
+  try{
+    const d=await api("/api/admin/billboard",{method:"PUT",body:{slides}});
+    slides=d.slides||[];renderEditor();
+    notice("Billboard saved. The home page is updated.");
+  }catch(err){notice(err.message)}
+  finally{btn.disabled=false}
 }
 
 // ---------- start: only admins get the dashboard ----------
@@ -150,5 +206,7 @@ async function init(){
 $$(".a-tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
 $("#userSearch").addEventListener("input",()=>{clearTimeout(userTimer);userTimer=setTimeout(loadUsers,300)});
 $("#userStatus").addEventListener("change",loadUsers);
+$("#bbAdd").addEventListener("click",()=>{if(slides.length>=MAX_SLIDES){notice(`A billboard can have up to ${MAX_SLIDES} slides.`);return}slides.push(blankSlide());renderEditor()});
+$("#bbSave").addEventListener("click",saveBillboard);
 init();
 })();

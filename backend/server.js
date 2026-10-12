@@ -20,6 +20,11 @@ const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'db.json
 const TOKEN_TTL_SECONDS = Number(process.env.TOKEN_TTL_SECONDS) || 7 * 24 * 60 * 60;
 const RESET_TTL_MS = 60 * 60 * 1000; // password reset links last 1 hour
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;       // uploaded photos, after decoding
+const MAX_UPLOAD_BODY_BYTES = 5 * 1024 * 1024; // base64 adds about a third on top
+const UPLOAD_DIR = path.join(path.dirname(DATA_FILE), 'uploads');
+const MAX_BILLBOARD_SLIDES = 8;
+const BILLBOARD_THEMES = ['orange', 'deep', 'amber', 'crimson'];
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*')
   .split(',').map((s) => s.trim()).filter(Boolean);
 const FRONTEND_URL = (process.env.FRONTEND_URL || ALLOWED_ORIGINS.find((o) => o !== '*') || '')
@@ -46,7 +51,7 @@ if (!RESEND_API_KEY) console.warn('[studmart] RESEND_API_KEY is not set. Passwor
 // Fine for launch and demos. On Render's free disk, data is lost on redeploy,
 // so move to Postgres (or another database) before going live with real users.
 function emptyDb() {
-  return { users: [], resets: [], listings: [], saves: [] };
+  return { users: [], resets: [], listings: [], saves: [], billboard: [] };
 }
 function loadDb() {
   try {
@@ -144,13 +149,13 @@ class HttpError extends Error {
 }
 const bad = (message) => new HttpError(400, message);
 
-function readJson(req) {
+function readJson(req, limit = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > limit) {
         reject(new HttpError(413, 'Request is too large.'));
         req.destroy();
         return;
@@ -186,7 +191,7 @@ function setCors(req, res) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '600');
 }
@@ -454,8 +459,8 @@ function validateListing(body, { partial = false } = {}) {
   }
   if (!partial || has('imageUrl')) {
     const v = clean(body.imageUrl);
-    if (v && (!/^https:\/\//.test(v) || v.length > LIMITS.imageUrl)) {
-      throw bad('Photo link must start with https:// and be under 500 characters.');
+    if (v && !isAllowedImage(v)) {
+      throw bad('Photo must be an uploaded image or an https:// link, under 500 characters.');
     }
     out.imageUrl = v;
   }
@@ -683,6 +688,77 @@ function adminDeleteListing(id, res) {
 // ---------- routing ----------
 const UUID_PATH = '([0-9a-f-]{36})';
 
+// ---------- uploads (photos for listings and billboard slides) ----------
+const UPLOAD_NAME_RE = /^[a-f0-9-]{36}\.(jpg|png|webp)$/;
+const UPLOAD_TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+function isAllowedImage(v) {
+  if (!v) return true;
+  if (v.startsWith('/uploads/')) return UPLOAD_NAME_RE.test(v.slice('/uploads/'.length)) && v.length <= LIMITS.imageUrl;
+  return /^https:\/\//.test(v) && v.length <= LIMITS.imageUrl;
+}
+// Check the real file signature, not the type the browser claims
+function detectImageExt(buf) {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  return null;
+}
+function saveUpload(user, body, res) {
+  const match = typeof body.data === 'string' && body.data.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw bad('Please choose a JPEG, PNG or WebP image.');
+  const buf = Buffer.from(match[2], 'base64');
+  if (!buf.length) throw bad('That image is empty.');
+  if (buf.length > MAX_IMAGE_BYTES) throw new HttpError(413, 'Photos must be 3 MB or smaller.');
+  const ext = detectImageExt(buf);
+  if (!ext) throw bad('That file is not a valid JPEG, PNG or WebP image.');
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const name = `${crypto.randomUUID()}.${ext}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
+  send(res, 201, { message: 'Photo uploaded.', url: `/uploads/${name}` });
+}
+function serveUpload(name, res) {
+  fs.readFile(path.join(UPLOAD_DIR, name), (err, buf) => {
+    if (err) return send(res, 404, { message: 'Photo not found.' });
+    res.writeHead(200, {
+      'Content-Type': UPLOAD_TYPES[name.split('.').pop()],
+      'Content-Length': buf.length,
+      'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.end(buf);
+  });
+}
+
+// ---------- billboard (home page slideshow, edited by admins) ----------
+const SLIDE_LINK_RE = /^(https:\/\/|\/(?!\/)|\.\/|#)/;
+function validateSlide(s) {
+  if (!s || typeof s !== 'object') throw bad('Each slide needs a title and a link.');
+  const kicker = clean(s.kicker).slice(0, 40);
+  const title = clean(s.title);
+  const body = clean(s.body);
+  const buttonText = clean(s.buttonText).slice(0, 30) || 'Learn more';
+  const buttonLink = clean(s.buttonLink);
+  const imageUrl = clean(s.imageUrl);
+  const theme = BILLBOARD_THEMES.includes(s.theme) ? s.theme : 'orange';
+  if (!title || title.length > 80) throw bad('Each slide needs a title of 1–80 characters.');
+  if (body.length > 220) throw bad('Slide text must be 220 characters or fewer.');
+  if (!buttonLink || buttonLink.length > 200 || !SLIDE_LINK_RE.test(buttonLink)) {
+    throw bad('Slide links must be a page on STUDMART (like ./shops.html or #market) or an https:// link.');
+  }
+  if (imageUrl && !isAllowedImage(imageUrl)) throw bad('Slide image must be an uploaded image or an https:// link.');
+  return { id: crypto.randomUUID(), kicker, title, body, buttonText, buttonLink, imageUrl, theme };
+}
+function getBillboard(res) {
+  send(res, 200, { slides: db.billboard || [] });
+}
+function adminSetBillboard(body, res) {
+  if (!Array.isArray(body.slides)) throw bad('Send the slides as a list.');
+  if (body.slides.length > MAX_BILLBOARD_SLIDES) throw bad(`A billboard can have up to ${MAX_BILLBOARD_SLIDES} slides.`);
+  db.billboard = body.slides.map(validateSlide);
+  saveDb();
+  send(res, 200, { message: 'Billboard saved.', slides: db.billboard });
+}
+
 async function dispatch(req, res, url) {
   const { pathname, searchParams: query } = url;
   const m = req.method;
@@ -756,6 +832,16 @@ async function dispatch(req, res, url) {
   if (match && m === 'DELETE') {
     requireAdmin(req);
     return adminDeleteListing(match[1], res);
+  }
+
+  // uploads and billboard
+  if (m === 'POST' && pathname === '/api/uploads') return saveUpload(currentUser(req), await readJson(req, MAX_UPLOAD_BODY_BYTES), res);
+  match = pathname.match(/^\/uploads\/([a-f0-9-]{36}\.(?:jpg|png|webp))$/);
+  if (m === 'GET' && match) return serveUpload(match[1], res);
+  if (m === 'GET' && pathname === '/api/billboard') return getBillboard(res);
+  if (m === 'PUT' && pathname === '/api/admin/billboard') {
+    requireAdmin(req);
+    return adminSetBillboard(await readJson(req, MAX_UPLOAD_BODY_BYTES), res);
   }
 
   return send(res, 404, { message: 'Route not found.' });

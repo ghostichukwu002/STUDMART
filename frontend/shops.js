@@ -68,7 +68,7 @@ function renderHead(s){
 function listingTile(l){
   return el("a",{class:"listing",href:`./index.html?listing=${encodeURIComponent(l.id)}`},
     el("div",{class:"listing-img",style:"position:relative"},
-      l.imageUrl?el("img",{src:l.imageUrl,alt:"",loading:"lazy",referrerpolicy:"no-referrer"}):el("span",{text:CAT_ICON[l.category]||"✳"})),
+      l.imageUrl?el("img",{src:l.imageUrl.startsWith("/uploads/")?API_BASE+l.imageUrl:l.imageUrl,alt:"",loading:"lazy",referrerpolicy:"no-referrer"}):el("span",{text:CAT_ICON[l.category]||"✳"})),
     el("div",{class:"listing-body"},
       el("small",{text:l.category}),
       el("h3",{text:l.title}),

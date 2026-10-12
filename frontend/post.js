@@ -45,11 +45,12 @@ form.addEventListener("submit",async e=>{
   const f=form.elements;
   const body={
     title:f.title.value.trim(),category:f.category.value,condition:f.condition.value,price:f.price.value,
-    pickup:f.pickup.value.trim(),contact:f.contact.value.trim(),imageUrl:f.imageUrl.value.trim(),description:f.description.value.trim()
+    pickup:f.pickup.value.trim(),contact:f.contact.value.trim(),imageUrl:"",description:f.description.value.trim()
   };
   if(!body.title||!body.price||!body.pickup||!body.description){show("Please fill in the title, price, pickup location and description.",false);return}
   btn.classList.add("is-loading");btn.disabled=true;
   try{
+    if(f.photo.files[0])body.imageUrl=await StudmartMedia.uploadImage(f.photo.files[0],token);
     const r=await fetch(API_BASE+"/api/listings",{
       method:"POST",
       headers:{"Content-Type":"application/json",Accept:"application/json",Authorization:`Bearer ${token}`},
@@ -58,7 +59,7 @@ form.addEventListener("submit",async e=>{
     const d=await r.json().catch(()=>({}));
     if(r.status===401){gate("Your session has ended","Log in to STUDMART again, then come back to post.");return}
     if(!r.ok)throw new Error(d.message||`Request failed (${r.status})`);
-    form.reset();show("Your listing is live! Post another, or go back to the marketplace.",true);
+    form.reset();$("#photoPreview").hidden=true;show("Your listing is live! Post another, or go back to the marketplace.",true);
     notice("Your listing is live.");
   }catch(err){
     const offline=err instanceof TypeError;
@@ -66,5 +67,6 @@ form.addEventListener("submit",async e=>{
   }finally{btn.classList.remove("is-loading");btn.disabled=false}
 });
 
+StudmartMedia.preview(form.elements.photo,$("#photoPreview"));
 init();
 })();

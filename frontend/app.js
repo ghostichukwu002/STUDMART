@@ -291,7 +291,7 @@ function listingCard(l){
     el("span",{class:"condition",text:l.condition.toUpperCase()}),
     l.status==="sold"?el("span",{class:"condition sold-tag",text:"SOLD"}):null,
     el("button",{class:`save${l.saved?" saved":""}`,type:"button",text:l.saved?"♥":"♡","aria-label":l.saved?"Remove from saved":"Save listing",onclick:e=>{e.stopPropagation();toggleSave(l)}}),
-    l.imageUrl?el("img",{src:l.imageUrl,alt:"",loading:"lazy",referrerpolicy:"no-referrer"}):el("div",{class:"cat-icon",text:CAT_ICON[l.category]||"✳"}));
+    l.imageUrl?el("img",{src:window.StudmartMedia.imgSrc(l.imageUrl),alt:"",loading:"lazy",referrerpolicy:"no-referrer"}):el("div",{class:"cat-icon",text:CAT_ICON[l.category]||"✳"}));
   return el("article",{class:`listing reveal visible${l.status==="sold"?" sold":""}`,tabindex:"0",role:"button",onclick:()=>openListing(l.id),
       onkeydown:e=>{if(e.key==="Enter")openListing(l.id)}},
     img,
@@ -360,7 +360,7 @@ async function openListing(id){
     const l=detail;
     const img=$("#lmImg");
     img.className=`lm-img ${CAT_BG[l.category]||"camera-bg"}`;
-    img.replaceChildren(l.imageUrl?el("img",{src:l.imageUrl,alt:"",referrerpolicy:"no-referrer"}):el("div",{class:"cat-icon",text:CAT_ICON[l.category]||"✳"}));
+    img.replaceChildren(l.imageUrl?el("img",{src:window.StudmartMedia.imgSrc(l.imageUrl),alt:"",referrerpolicy:"no-referrer"}):el("div",{class:"cat-icon",text:CAT_ICON[l.category]||"✳"}));
     $("#lmCat").textContent=`${l.category} · ${l.condition}${l.status==="sold"?" · SOLD":""}`;
     $("#lmTitle").textContent=l.title;
     $("#lmPrice").textContent=money(l.price);
@@ -419,6 +419,7 @@ function openSell(l){
   openModal(sellModal);
   setTimeout(()=>f.title.focus({preventScroll:true}),180);
 }
+window.StudmartMedia.preview(sellForm.elements.photo,$("#sellPhotoPreview"));
 $("#sellBtn").addEventListener("click",()=>openSell());
 $("#dockSell").addEventListener("click",()=>openSell());
 $("#dockSaved").addEventListener("click",()=>{
@@ -434,6 +435,7 @@ sellForm.addEventListener("submit",async e=>{
   const id=f.listingId.value;
   const btn=$("#sellSubmit");btn.disabled=true;
   try{
+    if(f.photo.files[0])body.imageUrl=await window.StudmartMedia.uploadImage(f.photo.files[0],token);
     const d=id
       ?await request(`${API_PATHS.listings}/${id}`,{method:"PATCH",body,auth:true})
       :await request(API_PATHS.listings,{body,auth:true});

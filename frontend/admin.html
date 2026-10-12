@@ -17,7 +17,7 @@
     <nav class="a-tabs" aria-label="Admin sections">
       <button type="button" data-tab="pending" class="active">Verification requests <span id="pendingCount"></span></button>
       <button type="button" data-tab="users">All users</button>
-      <button type="button" data-tab="listings">Listings</button>
+      <button type="button" data-tab="listings">Listings</button><button type="button" data-tab="billboard">Billboard</button>
     </nav>
     <section id="tab-pending"></section>
     <section id="tab-users" hidden>
@@ -30,8 +30,13 @@
       <div id="userList"></div>
     </section>
     <section id="tab-listings" hidden><div id="listingList"></div></section>
+    <section id="tab-billboard" hidden>
+      <p class="bb-intro">These slides rotate on the STUDMART home page. Add a photo or leave it blank, then save to publish. With no slides saved, the home page shows its built-in slides.</p>
+      <div class="bb-actions"><button type="button" class="btn light" id="bbAdd">Add slide</button><button type="button" class="btn dark" id="bbSave">Save billboard</button></div>
+      <div id="bbEditor"></div>
+    </section>
   </div>
   <div class="toast" id="toast" role="status"></div>
 </main>
-<script src="./admin.js" defer></script>
+<script src="./media.js" defer></script><script src="./admin.js" defer></script>
 </body></html>
