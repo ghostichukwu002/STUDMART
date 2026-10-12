@@ -13,7 +13,7 @@
 - Personal accounts: sign up, log in, stay logged in across reloads, log out
 - Shop accounts: a separate kind of account with a shop name, address (any town or area, not tied to a school), WhatsApp number and description. Shop sign-up does not ask for a school. Sign up from the "Shop account" tab or "Open a shop account" on the home page.
 - Profile photos: upload a photo on the Edit profile page (JPEG, PNG or WebP, up to 3 MB). Shown on your profile.
-- Developer badge: a gold tick inside a hexagon, granted by an admin in the Users tab ("Make developer"). It sits next to the blue student tick on listings and profiles.
+- Verified badges: students who are approved get a blue seal with a white tick. Developer accounts get a black seal with a white tick, granted by an admin in the Users tab ("Make developer"). Both show on listings and profiles.
 - Profile page (`profile.html`): see your details, verification status and your listings, with Edit, Mark sold and Delete.
 - Edit profile page (`edit-profile.html`): change your name, school and bio (personal accounts), or your shop details (shop accounts), and change your password.
 - Posting: "Sell an item" opens the post page. Posting only needs you to be logged in.
