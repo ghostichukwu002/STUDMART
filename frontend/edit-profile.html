@@ -5,7 +5,7 @@
 <title>Edit profile · STUDMART</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./account.css">
-</head><body>
+</head><body><datalist id="schoolList"></datalist>
 <header class="nav">
   <a class="brand" href="./index.html"><img class="logo-img" src="./logo.png" alt="" width="33" height="40" decoding="async"><span>STUD<span class="light">MART</span><small>YOUR CAMPUS. YOUR MARKETPLACE.</small></span></a>
   <div class="nav-actions"><a class="plain" href="./profile.html">Back to profile</a></div>
@@ -37,7 +37,7 @@
         <label>Last name<input name="lastName" maxlength="40" autocomplete="family-name"></label>
       </div>
       <div id="personalFields">
-        <label>School / campus<input name="school" maxlength="80" autocomplete="organization"></label>
+        <label>School / campus<input name="school" maxlength="80" autocomplete="off" placeholder="Start typing, e.g. Lagos"></label>
         <label>Bio<textarea name="bio" maxlength="300" placeholder="What you study, what you sell, what you're looking for…"></textarea></label>
       </div>
       <div id="shopFields" hidden>
@@ -60,5 +60,5 @@
   </section>
 </main>
 <div class="toast" id="toast" role="status"></div>
-<script src="./pageload.js"></script><script src="./media.js" defer></script><script src="./edit-profile.js" defer></script>
+<script src="./pageload.js"></script><script src="./universities.js" defer></script><script src="./school-list.js" defer></script><script src="./media.js" defer></script><script src="./edit-profile.js" defer></script>
 </body></html>
