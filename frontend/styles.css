@@ -168,3 +168,33 @@ html[data-theme="dark"] .marker:after{background:#c2410c}
 @media(max-width:370px){.theme-toggle{width:28px;height:28px}.nav-actions{gap:4px}}
 @media(max-width:720px){.nav{gap:8px}}
 .dev-badge{color:#1c1917}
+
+/* ---------- login lamp scene (index sign-in panel) ---------- */
+.lamp-stage{position:relative;overflow:hidden;border-radius:20px;background:radial-gradient(ellipse at 50% 0%,#2b211b 0%,#0e0a08 72%);color:#fff;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:0 16px 18px;margin:0 0 22px;isolation:isolate}
+.lamp-glow{position:absolute;inset:0;background:radial-gradient(circle at 50% 14%,rgba(251,146,60,.55),rgba(251,146,60,0) 60%);opacity:0;transition:opacity .6s ease;pointer-events:none;z-index:-1}
+.lamp-stage.lit .lamp-glow{opacity:1}
+.lamp-hang{position:relative;width:120px;height:120px;display:flex;flex-direction:column;align-items:center}
+.lamp-shade{width:76px;height:30px;background:#3a2d25;clip-path:polygon(18% 0,82% 0,100% 100%,0 100%);margin-top:0}
+.lamp-bulb{width:34px;height:12px;border-radius:0 0 40px 40px;background:#3f3128;margin-top:-1px;transition:background .5s,box-shadow .5s}
+.lamp-stage.lit .lamp-bulb{background:#fff1c2;box-shadow:0 0 26px 10px rgba(251,146,60,.6)}
+.lamp-cord{position:absolute;top:44px;right:26px;width:2px;height:58px;background:#8a7a70;border-radius:2px}
+.pull{position:absolute;top:96px;right:19px;width:16px;height:16px;border:0;padding:0;border-radius:50%;background:#fb923c;cursor:pointer;transform-origin:50% -48px;box-shadow:0 0 0 3px rgba(251,146,60,.25)}
+.pull i{position:absolute;inset:0;border-radius:50%}
+.pull:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.pull.swing{animation:pull-swing .6s ease-out}
+@keyframes pull-swing{0%{transform:rotate(0)}25%{transform:rotate(14deg)}55%{transform:rotate(-8deg)}80%{transform:rotate(3deg)}100%{transform:rotate(0)}}
+.lamp-mascot{margin-top:12px;width:82px;height:82px;border-radius:24px;display:grid;place-items:center;background:#1e1713;border:1px solid #3a2d25;transition:box-shadow .6s,border-color .6s}
+.lamp-mascot img{width:44px;height:auto;filter:brightness(.35) saturate(.6);transition:filter .6s}
+.lamp-stage.lit .lamp-mascot{border-color:#fb923c;box-shadow:0 0 30px rgba(251,146,60,.55)}
+.lamp-stage.lit .lamp-mascot img{filter:none}
+.lamp-text{margin:14px 0 0;font:700 13px/1.4 Manrope,sans-serif;text-align:center;color:#f5f0eb}
+.lamp-text .t-on{display:none}
+.lamp-stage.lit .lamp-text .t-on{display:inline}
+.lamp-stage.lit .lamp-text .t-off{display:none}
+@media (prefers-reduced-motion:reduce){.lamp-glow,.lamp-bulb,.lamp-mascot,.lamp-mascot img{transition:none}.pull.swing{animation:none}}
+/* desktop: the lamp scene sits at the top of the orange side panel */
+.auth-art .lamp-stage{background:radial-gradient(ellipse at 50% 0%,#3a1d0a 0%,#140a05 75%);min-height:250px;margin:0 0 26px}
+.auth-art .lamp-stage-m{display:none}
+/* phones: the side panel is hidden, so the scene shows at the top of the form */
+.lamp-stage-m{display:none}
+@media(max-width:720px){.auth-art .lamp-stage{display:none}.lamp-stage-m{display:flex;min-height:200px;margin:0 0 16px}}
