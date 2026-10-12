@@ -142,3 +142,7 @@ button:active:not(:disabled),a.btn:active,.listing:active,.chip:active{transform
 .brand .light{background:none;border:0;padding:0}
 /* on the orange sign-up panel the logo shows as a white silhouette */
 .auth-art .logo-img{filter:brightness(0) invert(1)}
+/* bottom dock icons: consistent SVG line icons on phones */
+.dock b{display:grid;place-items:center;height:26px;width:44px;border-radius:99px;font-size:0;line-height:0}
+.dock b svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.dock #dockSell b{background:var(--brand);color:#fff;width:52px;height:26px}
