@@ -51,7 +51,7 @@ if (!RESEND_API_KEY) console.warn('[studmart] RESEND_API_KEY is not set. Passwor
 // Fine for launch and demos. On Render's free disk, data is lost on redeploy,
 // so move to Postgres (or another database) before going live with real users.
 function emptyDb() {
-  return { users: [], resets: [], listings: [], saves: [], billboard: [], reports: [], blocks: [] };
+  return { users: [], resets: [], listings: [], saves: [], billboard: [], reports: [], blocks: [], conversations: [], messages: [] };
 }
 function loadDb() {
   try {
@@ -882,6 +882,83 @@ function adminSetSuspension(userId, body, res) {
   send(res, 200, { suspended: u.suspended });
 }
 
+// ---------- STUDCHAT: private buyer and seller chats about a listing ----------
+const MESSAGE_MAX = 1000;
+const chatName = (u) => (u.accountType === 'shop' && u.shop ? u.shop.name : sellerName(u));
+const participantOf = (c, user) => c.buyerId === user.id || c.sellerId === user.id;
+const otherPartyId = (c, user) => (c.buyerId === user.id ? c.sellerId : c.buyerId);
+
+function publicConversation(c, viewer) {
+  const l = db.listings.find((x) => x.id === c.listingId);
+  const other = db.users.find((u) => u.id === otherPartyId(c, viewer));
+  const last = db.messages.filter((m) => m.conversationId === c.id).slice(-1)[0];
+  return {
+    id: c.id,
+    listingId: c.listingId,
+    listingTitle: l ? l.title : 'Removed listing',
+    role: c.buyerId === viewer.id ? 'buyer' : 'seller',
+    otherName: other ? chatName(other) : 'Deleted account',
+    lastMessage: last ? { text: last.body, mine: last.senderId === viewer.id, createdAt: last.createdAt } : null,
+    updatedAt: c.updatedAt,
+  };
+}
+
+function startConversation(user, listingId, res) {
+  const l = db.listings.find((x) => x.id === listingId);
+  if (!l) throw new HttpError(404, 'Listing not found.');
+  if (l.sellerId === user.id) throw bad("This is your own listing.");
+  if (hiddenSellerIds(user).has(l.sellerId)) throw new HttpError(403, "You can't message this seller.");
+  let c = db.conversations.find((x) => x.listingId === l.id && x.buyerId === user.id);
+  if (!c) {
+    const t = now();
+    c = { id: crypto.randomUUID(), listingId: l.id, buyerId: user.id, sellerId: l.sellerId, createdAt: t, updatedAt: t };
+    db.conversations.push(c);
+    saveDb();
+  }
+  send(res, 200, { conversation: publicConversation(c, user) });
+}
+
+function myConversations(user, res) {
+  const items = db.conversations
+    .filter((c) => participantOf(c, user))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 200)
+    .map((c) => publicConversation(c, user));
+  send(res, 200, { conversations: items });
+}
+
+function conversationFor(user, id) {
+  const c = db.conversations.find((x) => x.id === id);
+  if (!c || !participantOf(c, user)) throw new HttpError(404, 'Conversation not found.');
+  return c;
+}
+
+function listMessages(user, id, query, res) {
+  const c = conversationFor(user, id);
+  const after = query.get('after');
+  let msgs = db.messages.filter((m) => m.conversationId === c.id);
+  if (after) msgs = msgs.filter((m) => m.createdAt > after);
+  msgs = msgs.slice(-200);
+  send(res, 200, {
+    conversation: publicConversation(c, user),
+    messages: msgs.map((m) => ({ id: m.id, text: m.body, mine: m.senderId === user.id, createdAt: m.createdAt })),
+  });
+}
+
+function sendMessage(user, id, body, res) {
+  const c = conversationFor(user, id);
+  if (hiddenSellerIds(user).has(otherPartyId(c, user))) throw new HttpError(403, "You can't message this person.");
+  const text = clean(body.text);
+  if (!text) throw bad('Write a message first.');
+  if (text.length > MESSAGE_MAX) throw bad(`Keep messages under ${MESSAGE_MAX} characters.`);
+  const t = now();
+  const m = { id: crypto.randomUUID(), conversationId: c.id, senderId: user.id, body: text, createdAt: t };
+  db.messages.push(m);
+  c.updatedAt = t;
+  saveDb();
+  send(res, 201, { message: { id: m.id, text, mine: true, createdAt: t } });
+}
+
 // ---------- routing ----------
 const UUID_PATH = '([0-9a-f-]{36})';
 
@@ -964,6 +1041,8 @@ const RATE_RULES = [
   { name: 'upload', limit: 40, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/uploads' },
   { name: 'post', limit: 30, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/listings' },
   { name: 'verify', limit: 5, windowMs: 24 * 60 * 60 * 1000, test: (m, p) => m === 'POST' && p === '/api/verification' },
+  { name: 'chat-start', limit: 30, windowMs: 60 * 60 * 1000, test: (m, p) => m === 'POST' && /^\/api\/listings\/[^/]+\/conversation$/.test(p) },
+  { name: 'chat-send', limit: 120, windowMs: 10 * 60 * 1000, test: (m, p) => m === 'POST' && /^\/api\/conversations\/[^/]+\/messages$/.test(p) },
 ];
 const rateHits = new Map();
 // Behind Render's proxy the real client is the last address in X-Forwarded-For (the first can be faked).
@@ -1053,6 +1132,13 @@ async function dispatch(req, res, url) {
   // admin
   if (m === 'POST' && pathname === '/api/reports') return createReport(currentUser(req), await readJson(req), res);
   if (m === 'GET' && pathname === '/api/me/blocks') return myBlocks(currentUser(req), res);
+  let convStartMatch = pathname.match(new RegExp(`^/api/listings/${UUID_PATH}/conversation$`));
+  if (convStartMatch && m === 'POST') return startConversation(currentUser(req), convStartMatch[1], res);
+  if (m === 'GET' && pathname === '/api/me/conversations') return myConversations(currentUser(req), res);
+  let convMsgMatch = pathname.match(new RegExp(`^/api/conversations/${UUID_PATH}/messages$`));
+  if (convMsgMatch && m === 'GET') return listMessages(currentUser(req), convMsgMatch[1], query, res);
+  if (convMsgMatch && m === 'POST') return sendMessage(currentUser(req), convMsgMatch[1], await readJson(req), res);
+
   let blockMatch = pathname.match(new RegExp(`^/api/users/${UUID_PATH}/block$`));
   if (blockMatch && (m === 'POST' || m === 'DELETE')) return setBlock(currentUser(req), blockMatch[1], m === 'POST', res);
   if (m === 'GET' && pathname === '/api/admin/reports') {
