@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><script src="./theme.js"></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STUDCHAT · STUDMART</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./chat.css"></head><body>
+<script src="./pageload.js"></script>
+<header class="nav"><a class="brand" href="./index.html"><img class="logo-img" src="./logo.png" alt="" width="33" height="40" decoding="async"><span>STUD<span class="light">CHAT</span><small>BUY AND SELL WITH PEOPLE ON CAMPUS</small></span></a>
+<div class="nav-actions"><a class="plain" href="./index.html">Marketplace</a></div></header>
+<main class="chat-page" id="chatPage">
+  <aside class="chat-list" aria-label="Your chats">
+    <div class="chat-list-head"><h1>STUDCHAT</h1><small>Chats about listings you've made or asked about.</small></div>
+    <div id="convList"></div>
+  </aside>
+  <section class="chat-thread" aria-live="polite">
+    <div class="thread-empty" id="threadEmpty">Pick a chat to read it, or message a seller from a listing.</div>
+    <div id="threadBox" hidden>
+      <div class="thread-head">
+        <button type="button" class="back" id="backBtn" aria-label="Back to chats">←</button>
+        <div class="thread-title"><b id="threadName"></b><small id="threadListing"></small></div>
+        <a class="plain" id="threadLink" href="./index.html">View listing</a>
+      </div>
+      <div class="messages" id="messages"></div>
+      <form class="composer" id="chatForm" novalidate>
+        <textarea id="chatText" rows="1" maxlength="1000" placeholder="Write a message…" aria-label="Message"></textarea>
+        <button class="btn dark" type="submit" id="sendBtn"><span>Send</span></button>
+      </form>
+      <p class="chat-err" id="chatErr" role="status"></p>
+    </div>
+  </section>
+</main>
+<script src="./chat.js" defer></script>
+</body></html>

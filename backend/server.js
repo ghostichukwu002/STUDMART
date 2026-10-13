@@ -885,15 +885,40 @@ function adminSetSuspension(userId, body, res) {
 // ---------- STUDCHAT: private buyer and seller chats about a listing ----------
 const MESSAGE_MAX = 1000;
 const chatName = (u) => (u.accountType === 'shop' && u.shop ? u.shop.name : sellerName(u));
-const participantOf = (c, user) => c.buyerId === user.id || c.sellerId === user.id;
+const participantOf = (c, user) => c.kind === 'group' || c.buyerId === user.id || c.sellerId === user.id;
+// One campus-wide group chat that every signed-in user can read and post in.
+const GROUP_NAME = 'STUDCHAT Campus';
+function campusGroup() {
+  let g = db.conversations.find((x) => x.kind === 'group');
+  if (!g) {
+    const t = now();
+    g = { id: crypto.randomUUID(), kind: 'group', listingId: null, buyerId: null, sellerId: null, createdAt: t, updatedAt: t };
+    db.conversations.push(g);
+    saveDb();
+  }
+  return g;
+}
 const otherPartyId = (c, user) => (c.buyerId === user.id ? c.sellerId : c.buyerId);
 
 function publicConversation(c, viewer) {
+  const last = db.messages.filter((m) => m.conversationId === c.id).slice(-1)[0];
+  if (c.kind === 'group') {
+    return {
+      id: c.id,
+      kind: 'group',
+      listingId: null,
+      listingTitle: 'Everyone on campus',
+      role: 'group',
+      otherName: GROUP_NAME,
+      lastMessage: last ? { text: last.body, mine: last.senderId === viewer.id, createdAt: last.createdAt } : null,
+      updatedAt: c.updatedAt,
+    };
+  }
   const l = db.listings.find((x) => x.id === c.listingId);
   const other = db.users.find((u) => u.id === otherPartyId(c, viewer));
-  const last = db.messages.filter((m) => m.conversationId === c.id).slice(-1)[0];
   return {
     id: c.id,
+    kind: 'listing',
     listingId: c.listingId,
     listingTitle: l ? l.title : 'Removed listing',
     role: c.buyerId === viewer.id ? 'buyer' : 'seller',
@@ -919,6 +944,7 @@ function startConversation(user, listingId, res) {
 }
 
 function myConversations(user, res) {
+  campusGroup();
   const items = db.conversations
     .filter((c) => participantOf(c, user))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -938,16 +964,27 @@ function listMessages(user, id, query, res) {
   const after = query.get('after');
   let msgs = db.messages.filter((m) => m.conversationId === c.id);
   if (after) msgs = msgs.filter((m) => m.createdAt > after);
+  if (c.kind === 'group') {
+    const hidden = hiddenSellerIds(user);
+    msgs = msgs.filter((m) => !hidden.has(m.senderId));
+  }
   msgs = msgs.slice(-200);
   send(res, 200, {
     conversation: publicConversation(c, user),
-    messages: msgs.map((m) => ({ id: m.id, text: m.body, mine: m.senderId === user.id, createdAt: m.createdAt })),
+    messages: msgs.map((m) => {
+      const out = { id: m.id, text: m.body, mine: m.senderId === user.id, createdAt: m.createdAt };
+      if (c.kind === 'group' && !out.mine) {
+        const sender = db.users.find((u) => u.id === m.senderId);
+        out.senderName = sender ? chatName(sender) : 'Deleted account';
+      }
+      return out;
+    }),
   });
 }
 
 function sendMessage(user, id, body, res) {
   const c = conversationFor(user, id);
-  if (hiddenSellerIds(user).has(otherPartyId(c, user))) throw new HttpError(403, "You can't message this person.");
+  if (c.kind !== 'group' && hiddenSellerIds(user).has(otherPartyId(c, user))) throw new HttpError(403, "You can't message this person.");
   const text = clean(body.text);
   if (!text) throw bad('Write a message first.');
   if (text.length > MESSAGE_MAX) throw bad(`Keep messages under ${MESSAGE_MAX} characters.`);

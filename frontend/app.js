@@ -104,6 +104,7 @@ function render(){
   const loggedIn=!!user;
   $("#guestActions").hidden=loggedIn;
   $("#userActions").hidden=!loggedIn;
+  $("#chatLink").hidden=!loggedIn;
   $("#marketFoot").hidden=loggedIn;
   if(loggedIn){
     const initials=`${(user.firstName||"")[0]||""}${(user.lastName||"")[0]||""}`.toUpperCase()||"S";
@@ -300,6 +301,7 @@ async function openListing(id){
     const canAct=!!user&&!l.isOwner;
     $("#lmReport").hidden=!canAct;
     $("#lmBlock").hidden=!canAct;
+    $("#lmMessage").hidden=!canAct;
     if(canAct)refreshBlockButton(l.seller.id);
     $("#lmSold").textContent=l.status==="sold"?"Mark available":"Mark sold";
     openModal(listingModal);
@@ -327,6 +329,14 @@ $("#lmBlock").addEventListener("click",async()=>{
     await request(`/api/users/${id}/block`,{method:block?"POST":"DELETE",auth:true});
     notice(block?"Seller blocked. You won't see their listings.":"Seller unblocked.");
     if(block){closeModal(listingModal);loadListings()}else{refreshBlockButton(id)}
+  }catch(err){notice(err.message)}
+});
+$("#lmMessage").addEventListener("click",async()=>{
+  if(!detail)return;
+  if(!user){notice("Log in to message a seller.");return}
+  try{
+    const d=await request(`/api/listings/${detail.id}/conversation`,{method:"POST",auth:true});
+    location.href=`./chat.html?c=${encodeURIComponent(d.conversation.id)}`;
   }catch(err){notice(err.message)}
 });
 $("#lmReport").addEventListener("click",()=>{if(detail)openReport({targetType:"listing",targetId:detail.id,title:detail.title})});
