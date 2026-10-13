@@ -38,3 +38,42 @@
   #chatPage.show-thread .back{display:block}
   .chat-msg{max-width:86%}
 }
+
+/* photos, view once, badges, names and profile */
+.attach{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;flex:none}
+.attach:hover{background:var(--soft)}
+.thread-name{border:0;background:none;padding:0;font:800 15px Manrope,sans-serif;color:var(--ink);text-align:left;cursor:default;display:block;max-width:100%}
+.thread-name.tap{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.chat-who{display:inline-flex;align-items:center;gap:2px;border:0;background:none;padding:0;margin-bottom:2px;font:inherit;color:var(--brand-text);cursor:pointer;text-align:left}
+.chat-who b{font-size:12px;font-weight:800}
+.chat-who .shop-badge{margin-left:4px}
+.chat-photo{display:block;width:min(240px,100%);max-height:320px;object-fit:cover;border-radius:12px;margin-bottom:4px;-webkit-user-drag:none;user-select:none;-webkit-touch-callout:none;background:var(--soft)}
+.chat-open{display:flex;align-items:center;gap:8px;border:1px dashed currentColor;border-radius:12px;padding:10px 12px;background:none;color:inherit;font:700 13px Manrope,sans-serif;cursor:pointer;margin-bottom:4px}
+.chat-open small{font-weight:500;opacity:.8}
+.chat-gone{font-size:13px;font-style:italic;opacity:.75;margin:0 0 4px}
+.chat-msg .chat-text{display:block;white-space:pre-wrap}
+.photo-draft{display:flex;align-items:center;gap:12px;padding:10px 12px;border-top:1px solid var(--line);background:var(--surface)}
+.photo-draft img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.photo-draft .once{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;flex:1}
+.photo-draft .plain{font-size:13px}
+.peer{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
+.peer[hidden],.photo-view[hidden]{display:none}
+.peer-backdrop{position:absolute;inset:0;background:rgba(28,25,23,.5)}
+.peer-card{position:relative;width:min(380px,100%);max-height:86vh;overflow:auto;background:var(--surface);color:var(--ink);border-radius:18px;padding:24px 22px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.peer-x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:26px;line-height:1;color:var(--ink);cursor:pointer;z-index:2}
+.peer-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.peer-avatar{width:60px;height:60px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font:800 22px Manrope,sans-serif;overflow:hidden;flex:none}
+.peer-avatar img{width:100%;height:100%;object-fit:cover}
+.peer-name{font:800 19px Manrope,sans-serif;letter-spacing:-.4px;display:flex;align-items:center;flex-wrap:wrap;gap:2px}
+.peer-meta{font-size:13px;color:var(--muted);margin:2px 0 0;line-height:1.5}
+.peer-bio{font-size:14px;line-height:1.55;margin:12px 0}
+.peer-shop{background:var(--soft);border-radius:12px;padding:12px 14px;margin:12px 0;font-size:13px;line-height:1.5}
+.peer-shop b{font:800 14px Manrope,sans-serif}
+.peer h3{font:800 13px Manrope,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:18px 0 8px}
+.peer-listing{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none;font-size:14px}
+.peer-listing b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.peer-listing span{color:var(--brand-text);font-weight:800;white-space:nowrap}
+.photo-view{position:fixed;inset:0;z-index:300;background:rgba(10,9,8,.94);display:grid;place-items:center;padding:20px;color:#fff;text-align:center}
+.photo-view img{max-width:100%;max-height:78vh;border-radius:12px;-webkit-user-drag:none;user-select:none;-webkit-touch-callout:none}
+.photo-view p{font-size:13px;opacity:.8;margin:14px 0 0}
+.photo-view .peer-x{color:#fff;top:14px;right:16px}

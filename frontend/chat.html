@@ -9,7 +9,7 @@
 <div class="nav-actions"><a class="plain" href="./index.html">Marketplace</a></div></header>
 <main class="chat-page" id="chatPage">
   <aside class="chat-list" aria-label="Your chats">
-    <div class="chat-list-head"><h1>STUDCHAT</h1><small>Chats about listings you've made or asked about.</small></div>
+    <div class="chat-list-head"><h1>STUDCHAT</h1><small>The campus group and chats about listings.</small></div>
     <div id="convList"></div>
   </aside>
   <section class="chat-thread" aria-live="polite">
@@ -17,11 +17,20 @@
     <div id="threadBox" hidden>
       <div class="thread-head">
         <button type="button" class="back" id="backBtn" aria-label="Back to chats">←</button>
-        <div class="thread-title"><b id="threadName"></b><small id="threadListing"></small></div>
+        <div class="thread-title"><button type="button" class="thread-name" id="threadName"></button><small id="threadListing"></small></div>
         <a class="plain" id="threadLink" href="./index.html">View listing</a>
       </div>
       <div class="messages" id="messages"></div>
+      <div class="photo-draft" id="photoDraft" hidden>
+        <img id="photoPreview" alt="Photo to send" draggable="false">
+        <label class="once"><input type="checkbox" id="viewOnce"> View once</label>
+        <button type="button" class="plain" id="photoCancel">Remove</button>
+      </div>
       <form class="composer" id="chatForm" novalidate>
+        <label class="attach" title="Send a photo" aria-label="Send a photo">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h3l2-2.5h6L17 7h3v12H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" hidden>
+        </label>
         <textarea id="chatText" rows="1" maxlength="1000" placeholder="Write a message…" aria-label="Message"></textarea>
         <button class="btn dark" type="submit" id="sendBtn"><span>Send</span></button>
       </form>
@@ -29,5 +38,20 @@
     </div>
   </section>
 </main>
+
+<div class="peer" id="peerModal" hidden>
+  <div class="peer-backdrop" data-peer-close></div>
+  <section class="peer-card" role="dialog" aria-modal="true" aria-labelledby="peerBody">
+    <button type="button" class="peer-x" data-peer-close aria-label="Close">×</button>
+    <div id="peerBody"></div>
+  </section>
+</div>
+
+<div class="photo-view" id="photoView" hidden>
+  <button type="button" class="peer-x" id="photoClose" aria-label="Close">×</button>
+  <img id="photoFull" alt="Photo" draggable="false">
+  <p id="photoNote"></p>
+</div>
+
 <script src="./chat.js" defer></script>
 </body></html>

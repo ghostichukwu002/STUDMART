@@ -900,8 +900,24 @@ function campusGroup() {
 }
 const otherPartyId = (c, user) => (c.buyerId === user.id ? c.sellerId : c.buyerId);
 
+// Public details shown beside a name in chat: badges and avatar, never email or password data.
+function peerInfo(u) {
+  if (!u) return null;
+  return {
+    id: u.id,
+    name: chatName(u),
+    avatarUrl: u.avatarUrl || '',
+    verified: (u.verification || {}).status === 'approved',
+    developer: !!u.developer,
+    shop: u.accountType === 'shop' && !!u.shop,
+  };
+}
+
 function publicConversation(c, viewer) {
   const last = db.messages.filter((m) => m.conversationId === c.id).slice(-1)[0];
+  const lastMessage = last
+    ? { text: last.body || (last.image ? 'Photo' : ''), mine: last.senderId === viewer.id, createdAt: last.createdAt }
+    : null;
   if (c.kind === 'group') {
     return {
       id: c.id,
@@ -910,7 +926,8 @@ function publicConversation(c, viewer) {
       listingTitle: 'Everyone on campus',
       role: 'group',
       otherName: GROUP_NAME,
-      lastMessage: last ? { text: last.body, mine: last.senderId === viewer.id, createdAt: last.createdAt } : null,
+      other: null,
+      lastMessage,
       updatedAt: c.updatedAt,
     };
   }
@@ -923,7 +940,8 @@ function publicConversation(c, viewer) {
     listingTitle: l ? l.title : 'Removed listing',
     role: c.buyerId === viewer.id ? 'buyer' : 'seller',
     otherName: other ? chatName(other) : 'Deleted account',
-    lastMessage: last ? { text: last.body, mine: last.senderId === viewer.id, createdAt: last.createdAt } : null,
+    other: peerInfo(other),
+    lastMessage,
     updatedAt: c.updatedAt,
   };
 }
@@ -959,26 +977,34 @@ function conversationFor(user, id) {
   return c;
 }
 
+function messageOut(m, viewer) {
+  const mine = m.senderId === viewer.id;
+  const out = { id: m.id, text: m.body || '', mine, createdAt: m.createdAt, senderId: m.senderId };
+  if (!mine) {
+    out.sender = peerInfo(db.users.find((u) => u.id === m.senderId)) || { id: m.senderId, name: 'Deleted account', verified: false, developer: false, shop: false, avatarUrl: '' };
+  }
+  if (m.image) {
+    const viewed = (m.image.viewedBy || []).includes(viewer.id);
+    out.image = {
+      viewOnce: !!m.image.viewOnce,
+      // recipients: opened by you. sender: opened by anyone (you can still look at your own photo)
+      opened: m.image.viewOnce && (mine ? (m.image.viewedBy || []).length > 0 : viewed),
+    };
+  }
+  return out;
+}
+
 function listMessages(user, id, query, res) {
   const c = conversationFor(user, id);
   const after = query.get('after');
   let msgs = db.messages.filter((m) => m.conversationId === c.id);
   if (after) msgs = msgs.filter((m) => m.createdAt > after);
-  if (c.kind === 'group') {
-    const hidden = hiddenSellerIds(user);
-    msgs = msgs.filter((m) => !hidden.has(m.senderId));
-  }
+  const hidden = hiddenSellerIds(user);
+  msgs = msgs.filter((m) => !hidden.has(m.senderId));
   msgs = msgs.slice(-200);
   send(res, 200, {
     conversation: publicConversation(c, user),
-    messages: msgs.map((m) => {
-      const out = { id: m.id, text: m.body, mine: m.senderId === user.id, createdAt: m.createdAt };
-      if (c.kind === 'group' && !out.mine) {
-        const sender = db.users.find((u) => u.id === m.senderId);
-        out.senderName = sender ? chatName(sender) : 'Deleted account';
-      }
-      return out;
-    }),
+    messages: msgs.map((m) => messageOut(m, user)),
   });
 }
 
@@ -986,14 +1012,65 @@ function sendMessage(user, id, body, res) {
   const c = conversationFor(user, id);
   if (c.kind !== 'group' && hiddenSellerIds(user).has(otherPartyId(c, user))) throw new HttpError(403, "You can't message this person.");
   const text = clean(body.text);
-  if (!text) throw bad('Write a message first.');
   if (text.length > MESSAGE_MAX) throw bad(`Keep messages under ${MESSAGE_MAX} characters.`);
+  let image = null;
+  if (body.image !== undefined && body.image !== null) {
+    image = { name: storeImage(body.image), viewOnce: body.viewOnce === true, viewedBy: [] };
+  }
+  if (!text && !image) throw bad('Write a message or choose a photo first.');
   const t = now();
   const m = { id: crypto.randomUUID(), conversationId: c.id, senderId: user.id, body: text, createdAt: t };
+  if (image) m.image = image;
   db.messages.push(m);
   c.updatedAt = t;
   saveDb();
-  send(res, 201, { message: { id: m.id, text, mine: true, createdAt: t } });
+  send(res, 201, { message: messageOut(m, user) });
+}
+
+// A chat photo. Only people in the conversation can fetch it. A view-once photo can be
+// opened once by each recipient; after that the server refuses it.
+function serveMessageImage(user, messageId, res) {
+  const m = db.messages.find((x) => x.id === messageId);
+  if (!m || !m.image) throw new HttpError(404, 'Photo not found.');
+  const c = conversationFor(user, m.conversationId);
+  if (c.kind === 'group' && hiddenSellerIds(user).has(m.senderId)) throw new HttpError(404, 'Photo not found.');
+  const isSender = m.senderId === user.id;
+  if (m.image.viewOnce && !isSender) {
+    if (m.image.viewedBy.includes(user.id)) throw new HttpError(410, 'This photo was already opened.');
+    m.image.viewedBy.push(user.id);
+    saveDb();
+  }
+  let buf;
+  try { buf = fs.readFileSync(path.join(UPLOAD_DIR, m.image.name)); } catch { throw new HttpError(404, 'Photo not found.'); }
+  res.writeHead(200, {
+    'Content-Type': UPLOAD_TYPES[m.image.name.split('.').pop()],
+    'Content-Length': buf.length,
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.end(buf);
+}
+
+// Public profile of a person, opened by tapping their name in chat.
+function getProfile(viewer, id, res) {
+  const u = db.users.find((x) => x.id === id);
+  if (!u || u.suspended || hiddenSellerIds(viewer).has(u.id)) throw new HttpError(404, 'Profile not found.');
+  const listings = db.listings
+    .filter((l) => l.sellerId === u.id && l.status === 'active')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 12)
+    .map((l) => publicListing(l, viewer && viewer.id));
+  const isShop = u.accountType === 'shop' && !!u.shop;
+  send(res, 200, {
+    profile: {
+      ...peerInfo(u),
+      school: u.school || '',
+      bio: u.bio || '',
+      memberSince: u.createdAt,
+      shop: isShop ? publicShop(u) : null,
+      listings,
+    },
+  });
 }
 
 // ---------- routing ----------
@@ -1014,8 +1091,9 @@ function detectImageExt(buf) {
   if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
   return null;
 }
-function saveUpload(user, body, res) {
-  const match = typeof body.data === 'string' && body.data.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+// Validates a data: URL image and writes it to the uploads folder. Returns the file name.
+function storeImage(dataUrl) {
+  const match = typeof dataUrl === 'string' && dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
   if (!match) throw bad('Please choose a JPEG, PNG or WebP image.');
   const buf = Buffer.from(match[2], 'base64');
   if (!buf.length) throw bad('That image is empty.');
@@ -1025,6 +1103,10 @@ function saveUpload(user, body, res) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   const name = `${crypto.randomUUID()}.${ext}`;
   fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
+  return name;
+}
+function saveUpload(user, body, res) {
+  const name = storeImage(body.data);
   send(res, 201, { message: 'Photo uploaded.', url: `/uploads/${name}` });
 }
 function serveUpload(name, res) {
@@ -1174,7 +1256,11 @@ async function dispatch(req, res, url) {
   if (m === 'GET' && pathname === '/api/me/conversations') return myConversations(currentUser(req), res);
   let convMsgMatch = pathname.match(new RegExp(`^/api/conversations/${UUID_PATH}/messages$`));
   if (convMsgMatch && m === 'GET') return listMessages(currentUser(req), convMsgMatch[1], query, res);
-  if (convMsgMatch && m === 'POST') return sendMessage(currentUser(req), convMsgMatch[1], await readJson(req), res);
+  if (convMsgMatch && m === 'POST') return sendMessage(currentUser(req), convMsgMatch[1], await readJson(req, MAX_UPLOAD_BODY_BYTES), res);
+  let msgImageMatch = pathname.match(new RegExp(`^/api/messages/${UUID_PATH}/image$`));
+  if (msgImageMatch && m === 'GET') return serveMessageImage(currentUser(req), msgImageMatch[1], res);
+  let profileMatch = pathname.match(new RegExp(`^/api/users/${UUID_PATH}/profile$`));
+  if (profileMatch && m === 'GET') return getProfile(currentUser(req), profileMatch[1], res);
 
   let blockMatch = pathname.match(new RegExp(`^/api/users/${UUID_PATH}/block$`));
   if (blockMatch && (m === 'POST' || m === 'DELETE')) return setBlock(currentUser(req), blockMatch[1], m === 'POST', res);
