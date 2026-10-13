@@ -884,6 +884,8 @@ function adminSetSuspension(userId, body, res) {
 
 // ---------- STUDCHAT: private buyer and seller chats about a listing ----------
 const MESSAGE_MAX = 1000;
+const MAX_AUDIO_BYTES = 2 * 1024 * 1024;   // voice notes, after decoding (about 2 minutes of speech)
+const AUDIO_TYPES = { webm: 'audio/webm', ogg: 'audio/ogg', m4a: 'audio/mp4', mp3: 'audio/mpeg' };
 const chatName = (u) => (u.accountType === 'shop' && u.shop ? u.shop.name : sellerName(u));
 const participantOf = (c, user) => c.kind === 'group' || c.buyerId === user.id || c.sellerId === user.id;
 // One campus-wide group chat that every signed-in user can read and post in.
@@ -983,6 +985,17 @@ function messageOut(m, viewer) {
   if (!mine) {
     out.sender = peerInfo(db.users.find((u) => u.id === m.senderId)) || { id: m.senderId, name: 'Deleted account', verified: false, developer: false, shop: false, avatarUrl: '' };
   }
+  if (m.replyTo) {
+    const orig = db.messages.find((x) => x.id === m.replyTo && x.conversationId === m.conversationId);
+    if (!orig || hiddenSellerIds(viewer).has(orig.senderId)) {
+      out.reply = { id: m.replyTo, sender: '', text: 'Message unavailable' };
+    } else {
+      const who = orig.senderId === viewer.id ? 'You' : (chatName(db.users.find((u) => u.id === orig.senderId) || { firstName: 'Deleted', lastName: '' }));
+      const snippet = orig.body ? orig.body.slice(0, 140) : (orig.image ? 'Photo' : (orig.audio ? 'Voice note' : ''));
+      out.reply = { id: orig.id, sender: who, text: snippet };
+    }
+  }
+  if (m.audio) out.audio = { mime: AUDIO_TYPES[m.audio.name.split('.').pop()] || 'audio/webm' };
   if (m.image) {
     const viewed = (m.image.viewedBy || []).includes(viewer.id);
     out.image = {
@@ -1017,10 +1030,20 @@ function sendMessage(user, id, body, res) {
   if (body.image !== undefined && body.image !== null) {
     image = { name: storeImage(body.image), viewOnce: body.viewOnce === true, viewedBy: [] };
   }
-  if (!text && !image) throw bad('Write a message or choose a photo first.');
+  let audio = null;
+  if (body.audio !== undefined && body.audio !== null) audio = { name: storeAudio(body.audio) };
+  if (!text && !image && !audio) throw bad('Write a message, choose a photo or record a voice note first.');
+  let replyTo = null;
+  if (body.replyTo !== undefined && body.replyTo !== null) {
+    const orig = db.messages.find((x) => x.id === body.replyTo && x.conversationId === c.id);
+    if (!orig) throw bad('That message is no longer available to reply to.');
+    replyTo = orig.id;
+  }
   const t = now();
   const m = { id: crypto.randomUUID(), conversationId: c.id, senderId: user.id, body: text, createdAt: t };
   if (image) m.image = image;
+  if (audio) m.audio = audio;
+  if (replyTo) m.replyTo = replyTo;
   db.messages.push(m);
   c.updatedAt = t;
   saveDb();
@@ -1029,27 +1052,30 @@ function sendMessage(user, id, body, res) {
 
 // A chat photo. Only people in the conversation can fetch it. A view-once photo can be
 // opened once by each recipient; after that the server refuses it.
-function serveMessageImage(user, messageId, res) {
+function serveMessageFile(user, messageId, field, res) {
   const m = db.messages.find((x) => x.id === messageId);
-  if (!m || !m.image) throw new HttpError(404, 'Photo not found.');
+  if (!m || !m[field]) throw new HttpError(404, 'File not found.');
   const c = conversationFor(user, m.conversationId);
-  if (c.kind === 'group' && hiddenSellerIds(user).has(m.senderId)) throw new HttpError(404, 'Photo not found.');
+  if (c.kind === 'group' && hiddenSellerIds(user).has(m.senderId)) throw new HttpError(404, 'File not found.');
   const isSender = m.senderId === user.id;
-  if (m.image.viewOnce && !isSender) {
-    if (m.image.viewedBy.includes(user.id)) throw new HttpError(410, 'This photo was already opened.');
-    m.image.viewedBy.push(user.id);
+  if (m[field].viewOnce && !isSender) {
+    if (m[field].viewedBy.includes(user.id)) throw new HttpError(410, 'This photo was already opened.');
+    m[field].viewedBy.push(user.id);
     saveDb();
   }
   let buf;
-  try { buf = fs.readFileSync(path.join(UPLOAD_DIR, m.image.name)); } catch { throw new HttpError(404, 'Photo not found.'); }
+  try { buf = fs.readFileSync(path.join(UPLOAD_DIR, m[field].name)); } catch { throw new HttpError(404, 'File not found.'); }
+  const ext = m[field].name.split('.').pop();
   res.writeHead(200, {
-    'Content-Type': UPLOAD_TYPES[m.image.name.split('.').pop()],
+    'Content-Type': field === 'audio' ? AUDIO_TYPES[ext] : UPLOAD_TYPES[ext],
     'Content-Length': buf.length,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
   });
   res.end(buf);
 }
+function serveMessageImage(user, messageId, res) { return serveMessageFile(user, messageId, 'image', res); }
+function serveMessageAudio(user, messageId, res) { return serveMessageFile(user, messageId, 'audio', res); }
 
 // Public profile of a person, opened by tapping their name in chat.
 function getProfile(viewer, id, res) {
@@ -1100,6 +1126,24 @@ function storeImage(dataUrl) {
   if (buf.length > MAX_IMAGE_BYTES) throw new HttpError(413, 'Photos must be 3 MB or smaller.');
   const ext = detectImageExt(buf);
   if (!ext) throw bad('That file is not a valid JPEG, PNG or WebP image.');
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const name = `${crypto.randomUUID()}.${ext}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
+  return name;
+}
+// Checks the file signature of a voice note and writes it. Returns the file name.
+function storeAudio(dataUrl) {
+  const match = typeof dataUrl === 'string' && dataUrl.match(/^data:audio\/(webm|ogg|mp4|mpeg)(?:;[^,]*)?;base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw bad('Voice notes must be webm, ogg, mp4 or mp3 audio.');
+  const buf = Buffer.from(match[2], 'base64');
+  if (!buf.length) throw bad('That voice note is empty.');
+  if (buf.length > MAX_AUDIO_BYTES) throw new HttpError(413, 'Voice notes must be 2 MB or smaller.');
+  let ext = null;
+  if (buf.length >= 4 && buf.readUInt32BE(0) === 0x1a45dfa3) ext = 'webm';
+  else if (buf.length >= 4 && buf.toString('ascii', 0, 4) === 'OggS') ext = 'ogg';
+  else if (buf.length >= 8 && buf.toString('ascii', 4, 8) === 'ftyp') ext = 'm4a';
+  else if ((buf.length >= 3 && buf.toString('ascii', 0, 3) === 'ID3') || (buf.length >= 2 && buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0)) ext = 'mp3';
+  if (!ext) throw bad('That file is not a valid voice note.');
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   const name = `${crypto.randomUUID()}.${ext}`;
   fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
@@ -1259,6 +1303,8 @@ async function dispatch(req, res, url) {
   if (convMsgMatch && m === 'POST') return sendMessage(currentUser(req), convMsgMatch[1], await readJson(req, MAX_UPLOAD_BODY_BYTES), res);
   let msgImageMatch = pathname.match(new RegExp(`^/api/messages/${UUID_PATH}/image$`));
   if (msgImageMatch && m === 'GET') return serveMessageImage(currentUser(req), msgImageMatch[1], res);
+  let msgAudioMatch = pathname.match(new RegExp(`^/api/messages/${UUID_PATH}/audio$`));
+  if (msgAudioMatch && m === 'GET') return serveMessageAudio(currentUser(req), msgAudioMatch[1], res);
   let profileMatch = pathname.match(new RegExp(`^/api/users/${UUID_PATH}/profile$`));
   if (profileMatch && m === 'GET') return getProfile(currentUser(req), profileMatch[1], res);
 

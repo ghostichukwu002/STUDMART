@@ -1,4 +1,4 @@
-/* STUDCHAT: campus group and listing chats. Messages refresh by polling. Photos load with the login token. */
+/* STUDCHAT: campus group and listing chats. Messages refresh by polling. Photos and voice notes load with the login token. */
 (() => {
   const $ = (s) => document.querySelector(s);
   const API_BASE = (window.STUDMART_API_URL || "https://studmart.onrender.com").replace(/\/+$/, "");
@@ -8,6 +8,8 @@
   const LIST_MS = 20000;
   const PHOTO_MAX_EDGE = 1600;           // px, longest side, before upload
   const PHOTO_MAX_BYTES = 3 * 1024 * 1024;
+  const VOICE_MAX_MS = 120000;           // two minutes
+  const VOICE_MAX_BYTES = 2 * 1024 * 1024;
 
   // Build DOM nodes from data, never innerHTML with user text
   function el(tag, props = {}, ...kids) {
@@ -59,11 +61,17 @@
   let lastAt = null;
   const seen = new Set();
   const nodeById = new Map();            // message id -> { node, m }
-  const photoUrls = new Map();           // message id -> object URL, for normal photos
-  let viewerUrl = null;                  // object URL of the photo open in the viewer
+  const mediaUrls = new Map();           // "image:<id>" or "audio:<id>" -> object URL, for files that aren't view-once
+  let viewerUrl = null;
   let viewerOwnsUrl = false;             // true for view-once photos, which are revoked on close
   let draftPhoto = null;                 // data URL of the photo waiting to be sent
+  let replyTo = null;                    // message being replied to
   let pollTimer = 0;
+  let recorder = null;
+  let recChunks = [];
+  let recTimer = 0;
+  let recStarted = 0;
+  let recStopMode = null;                // "send" or "cancel"
 
   function timeLabel(iso) {
     const d = new Date(iso);
@@ -139,7 +147,7 @@
     return el("div", {}, ...kids);
   }
 
-  // ---------- photos ----------
+  // ---------- photos and voice notes ----------
   function closeViewer() {
     const full = $("#photoFull");
     if (viewerOwnsUrl && full.src) URL.revokeObjectURL(full.src);
@@ -152,12 +160,12 @@
     const full = $("#photoFull");
     try {
       let url;
-      if (!once && photoUrls.has(m.id)) {
-        url = photoUrls.get(m.id);
+      if (!once && mediaUrls.has("image:" + m.id)) {
+        url = mediaUrls.get("image:" + m.id);
       } else {
         // view-once photos are fetched fresh and never cached, so they can't be reopened from memory
         url = URL.createObjectURL(await apiBlob(`/api/messages/${encodeURIComponent(m.id)}/image`));
-        if (!once) photoUrls.set(m.id, url);
+        if (!once) mediaUrls.set("image:" + m.id, url);
       }
       closeViewer();
       full.src = url;
@@ -176,20 +184,20 @@
     const entry = nodeById.get(id);
     if (!entry) return;
     const m = { ...entry.m, image: { ...entry.m.image, opened: true } };
-    const next = bubble(m);
-    entry.node.replaceWith(next);
+    entry.node.replaceWith(bubble(m));
   }
 
-  async function loadPhoto(id, img) {
+  async function loadMedia(id, kind, target) {
     try {
-      let url = photoUrls.get(id);
+      const key = kind + ":" + id;
+      let url = mediaUrls.get(key);
       if (!url) {
-        url = URL.createObjectURL(await apiBlob(`/api/messages/${encodeURIComponent(id)}/image`));
-        photoUrls.set(id, url);
+        url = URL.createObjectURL(await apiBlob(`/api/messages/${encodeURIComponent(id)}/${kind}`));
+        mediaUrls.set(key, url);
       }
-      img.src = url;
+      target.src = url;
     } catch {
-      img.alt = "Photo unavailable";
+      if (kind === "image") target.alt = "Photo unavailable";
     }
   }
 
@@ -204,19 +212,86 @@
         "📷 View-once photo", el("small", { text: img.opened ? "Opened" : "Not opened yet" }));
     }
     const pic = el("img", { class: "chat-photo", alt: "Photo", draggable: "false", onclick: () => openPhoto(m, false) });
-    loadPhoto(m.id, pic);
+    loadMedia(m.id, "image", pic);
     return pic;
+  }
+
+  function audioPart(m) {
+    const player = el("audio", { class: "chat-audio", controls: true, preload: "metadata" });
+    loadMedia(m.id, "audio", player);
+    return player;
+  }
+
+  // ---------- replies ----------
+  function previewOf(m) {
+    if (m.text) return m.text.length > 90 ? m.text.slice(0, 90) + "…" : m.text;
+    if (m.image) return "📷 Photo";
+    if (m.audio) return "🎤 Voice note";
+    return "";
+  }
+
+  function setReply(m) {
+    replyTo = m;
+    $("#replyWho").textContent = m.mine ? "Replying to yourself" : `Replying to ${m.sender ? m.sender.name : "message"}`;
+    $("#replyPreview").textContent = previewOf(m);
+    $("#replyDraft").hidden = false;
+    $("#chatText").focus();
+  }
+  function clearReply() {
+    replyTo = null;
+    $("#replyDraft").hidden = true;
+  }
+
+  function jumpTo(id) {
+    const entry = nodeById.get(id);
+    if (!entry) return;
+    entry.node.scrollIntoView({ block: "center", behavior: "smooth" });
+    entry.node.classList.remove("flash");
+    void entry.node.offsetWidth;
+    entry.node.classList.add("flash");
+    setTimeout(() => entry.node.classList.remove("flash"), 1700);
+  }
+
+  // Drag a message sideways to reply to it. Pointer events work for touch and mouse.
+  function attachSwipe(node, m) {
+    let startX = 0, startY = 0, dx = 0, active = false;
+    node.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button, audio, a, input, img")) return;
+      startX = e.clientX; startY = e.clientY; dx = 0; active = true;
+    });
+    node.addEventListener("pointermove", (e) => {
+      if (!active) return;
+      const d = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dy) > Math.abs(d) && Math.abs(d) < 12) return;
+      dx = Math.max(-10, Math.min(90, d));
+      node.style.transform = dx > 0 ? `translateX(${Math.round(dx * 0.8)}px)` : "";
+    });
+    const end = () => {
+      if (!active) return;
+      active = false;
+      node.style.transform = "";
+      if (dx >= 60) setReply(m);
+      dx = 0;
+    };
+    node.addEventListener("pointerup", end);
+    node.addEventListener("pointercancel", end);
   }
 
   // ---------- messages ----------
   function bubble(m) {
-    const node = el("div", { class: "chat-msg" + (m.mine ? " mine" : "") },
+    const node = el("div", { class: "chat-msg" + (m.mine ? " mine" : "") + (m.audio ? " has-audio" : "") },
       !m.mine && m.sender ? el("button", { class: "chat-who", type: "button", onclick: () => openProfile(m.sender.id) },
         el("b", { text: m.sender.name }), tick(m.sender.verified), devBadge(m.sender.developer), shopBadge(m.sender.shop)) : null,
+      m.reply ? el("button", { class: "chat-quote", type: "button", onclick: () => jumpTo(m.reply.id), disabled: !m.reply.id || !nodeById.has(m.reply.id) },
+        m.reply.sender ? el("b", { text: m.reply.sender }) : null,
+        el("span", { text: m.reply.text })) : null,
       m.image ? photoPart(m) : null,
+      m.audio ? audioPart(m) : null,
       m.text ? el("span", { class: "chat-text", text: m.text }) : null,
       el("time", { text: timeLabel(m.createdAt) }));
     nodeById.set(m.id, { node, m });
+    attachSwipe(node, m);
     return node;
   }
 
@@ -247,6 +322,7 @@
     lastAt = null;
     seen.clear();
     nodeById.clear();
+    clearReply();
     $("#messages").replaceChildren(el("p", { class: "chat-note", text: "Loading…" }));
     $("#threadEmpty").hidden = true;
     $("#threadBox").hidden = false;
@@ -347,6 +423,17 @@
     }
   }
 
+  // ---------- sending ----------
+  async function postMessage(body) {
+    if (replyTo) body.replyTo = replyTo.id;
+    const d = await api(`/api/conversations/${encodeURIComponent(activeId)}/messages`, { method: "POST", body });
+    const empty = $("#messages .chat-note");
+    if (empty) empty.remove();
+    addMessages([d.message]);
+    clearReply();
+    $("#messages").scrollTop = $("#messages").scrollHeight;
+  }
+
   async function send(e) {
     e.preventDefault();
     const input = $("#chatText");
@@ -359,19 +446,101 @@
     const body = { text };
     if (draftPhoto) { body.image = draftPhoto; body.viewOnce = $("#viewOnce").checked; }
     try {
-      const d = await api(`/api/conversations/${encodeURIComponent(activeId)}/messages`, { method: "POST", body });
-      const empty = $("#messages .chat-note");
-      if (empty) empty.remove();
-      addMessages([d.message]);
+      await postMessage(body);
       input.value = "";
       input.style.height = "";
       clearDraft();
-      $("#messages").scrollTop = $("#messages").scrollHeight;
     } catch (error) {
       err.textContent = error.message;
     } finally {
       btn.disabled = false;
       input.focus();
+    }
+  }
+
+  // ---------- voice notes ----------
+  function pickRecorderType() {
+    if (!window.MediaRecorder) return null;
+    const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+  }
+
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  function showRecording(on) {
+    $("#recBar").hidden = !on;
+    $("#chatForm").hidden = on;
+    $("#replyDraft").hidden = on || !replyTo;
+    $("#photoDraft").hidden = on || !draftPhoto;
+  }
+
+  async function startVoice() {
+    $("#chatErr").textContent = "";
+    if (!activeId) return;
+    const mime = pickRecorderType();
+    if (mime === null) { $("#chatErr").textContent = "Voice notes aren't supported in this browser."; return; }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      $("#chatErr").textContent = "Allow microphone access to record a voice note.";
+      return;
+    }
+    recChunks = [];
+    recStopMode = null;
+    recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    recorder.addEventListener("dataavailable", (e) => { if (e.data && e.data.size) recChunks.push(e.data); });
+    recorder.addEventListener("stop", () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const type = recorder.mimeType || mime || "audio/webm";
+      const blob = new Blob(recChunks, { type });
+      const mode = recStopMode;
+      recorder = null;
+      recChunks = [];
+      clearInterval(recTimer);
+      showRecording(false);
+      if (mode === "send" && blob.size) sendVoice(blob);
+    });
+    recorder.start();
+    recStarted = Date.now();
+    $("#recTime").textContent = "0:00";
+    showRecording(true);
+    recTimer = setInterval(() => {
+      const elapsed = Date.now() - recStarted;
+      $("#recTime").textContent = fmtTime(elapsed);
+      if (elapsed >= VOICE_MAX_MS) stopVoice("send");
+    }, 250);
+  }
+
+  function stopVoice(mode) {
+    if (!recorder || recorder.state === "inactive") return;
+    recStopMode = mode;
+    recorder.stop();
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error("We couldn't read that recording."));
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function sendVoice(blob) {
+    const btn = $("#recSend");
+    btn.disabled = true;
+    try {
+      if (blob.size > VOICE_MAX_BYTES) throw new Error("That voice note is too long. Keep it under two minutes.");
+      const audio = await blobToDataUrl(blob);
+      await postMessage({ text: "", audio });
+    } catch (error) {
+      $("#chatErr").textContent = error.message;
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -386,9 +555,14 @@
   });
   $("#photoInput").addEventListener("change", pickPhoto);
   $("#photoCancel").addEventListener("click", clearDraft);
+  $("#replyCancel").addEventListener("click", clearReply);
+  $("#micBtn").addEventListener("click", startVoice);
+  $("#recSend").addEventListener("click", () => stopVoice("send"));
+  $("#recCancel").addEventListener("click", () => stopVoice("cancel"));
   $("#backBtn").addEventListener("click", () => {
     activeId = null;
     clearInterval(pollTimer);
+    if (recorder) stopVoice("cancel");
     page.classList.remove("show-thread");
     history.replaceState(null, "", "./chat.html");
     loadList();

@@ -21,6 +21,10 @@
         <a class="plain" id="threadLink" href="./index.html">View listing</a>
       </div>
       <div class="messages" id="messages"></div>
+      <div class="reply-draft" id="replyDraft" hidden>
+        <div class="reply-text"><b id="replyWho"></b><span id="replyPreview"></span></div>
+        <button type="button" class="peer-x-plain" id="replyCancel" aria-label="Cancel reply">×</button>
+      </div>
       <div class="photo-draft" id="photoDraft" hidden>
         <img id="photoPreview" alt="Photo to send" draggable="false">
         <label class="once"><input type="checkbox" id="viewOnce"> View once</label>
@@ -32,8 +36,18 @@
           <input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" hidden>
         </label>
         <textarea id="chatText" rows="1" maxlength="1000" placeholder="Write a message…" aria-label="Message"></textarea>
+        <button class="attach" type="button" id="micBtn" title="Record a voice note" aria-label="Record a voice note">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
         <button class="btn dark" type="submit" id="sendBtn"><span>Send</span></button>
       </form>
+      <div class="rec-bar" id="recBar" hidden>
+        <span class="rec-dot" aria-hidden="true"></span>
+        <span class="rec-time" id="recTime">0:00</span>
+        <span class="rec-hint">Recording voice note · up to 2 minutes</span>
+        <button type="button" class="plain" id="recCancel">Cancel</button>
+        <button type="button" class="btn dark" id="recSend"><span>Send</span></button>
+      </div>
       <p class="chat-err" id="chatErr" role="status"></p>
     </div>
   </section>
