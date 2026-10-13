@@ -239,3 +239,6 @@ html,body{overflow-x:clip;max-width:100%}
 .nav-chat{display:none;place-items:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);flex:none}
 .nav-chat svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 @media(max-width:720px){.nav-chat{display:grid}}
+
+/* phones: shorter top-bar labels so the icons all fit */
+@media(max-width:430px){.hide-sm{display:none}.nav-actions{gap:6px}.nav-group{gap:6px}}
